@@ -19,7 +19,7 @@ PDFmark 是一个 Obsidian 插件：直接在库里读 PDF，随手划线、写�
 
 | | |
 | --- | --- |
-| **Text marks** | Select any part of a line and apply highlight, underline or strikethrough in 7 colours. Partial lines and multi-line selections are supported. 选中词组即可高亮 / 下划线 / 删除线，支持只选半行与跨行。 |
+| **Text marks** | Select any part of a line and apply highlight, underline or strikethrough in 8 colours. Partial lines and multi-line selections are supported. 选中词组即可高亮 / 下划线 / 删除线，支持只选半行与跨行。 |
 | **Freehand ink** | Pen and highlighter with adjustable width and colour, pressure-free, works with a stylus, a mouse or a finger. 画笔与荧光笔，粗细、颜色可调，触控笔 / 鼠标 / 手指都能写。 |
 | **Shapes** | Line, rectangle, ellipse and arrow; drag to draw, drag again to move, resize from the handles. 直线 / 方框 / 椭圆 / 箭头，画完可拖动、可拉伸。 |
 | **Text boxes** | Click anywhere and type — Chinese, English, any script your device can display. 在页面上任意位置添加文字批注，中英文都行。 |
@@ -29,7 +29,7 @@ PDFmark 是一个 Obsidian 插件：直接在库里读 PDF，随手划线、写�
 | **Sidebar** | All annotations for the current file, click to jump to it. 右侧列出本文件全部批注，点击定位。 |
 | **Export** | Turn annotations into a Markdown note with quotes, colours and page links (`[[file.pdf#page=12]]`). 一键导出 Markdown 笔记，带原文引用与页码双链。 |
 | **Burn-in** | Write the annotations into the PDF itself, so any reader sees them. The original file is backed up first. 把批注烧进 PDF，任何阅读器都能看到，原文件自动备份。 |
-| **Extras** | Night inversion, crop white margins, zoom / fit-width, undo & redo (50 steps), per-file annotation store. 夜间反色、裁白边、缩放适宽、50 步撤销重做。 |
+| **Extras** | Night inversion, crop white margins, zoom / fit-width, undo & redo (80 steps), per-file annotation store. 夜间反色、裁白边、缩放适宽、80 步撤销重做。 |
 | **Two languages** | The whole interface — tool rail, menus, dialogs, settings, exported notes — is available in English and Chinese, switchable in the settings; the default follows your Obsidian language. 界面支持中英文，可在设置里切换，默认跟随 Obsidian 的语言。 |
 
 ---
@@ -42,16 +42,16 @@ PDFmark 是一个 Obsidian 插件：直接在库里读 PDF，随手划线、写�
 
 **安装**：市场里搜 **PDFmark** 安装；或把 release 里的三个文件放进 `<库>/.obsidian/plugins/pdfmark/`，在「第三方插件」里启用。
 
-PDFmark does **not** take over `.pdf` by default. Open a PDF with it through the ribbon icon, the file context menu (“Open with PDFmark”), or the command palette. If you want double-click to work, enable **Take over .pdf** in the plugin settings — this needs an Obsidian restart and can be switched off at any time without affecting other PDF plugins.
+PDFmark does **not** take over `.pdf` by default. Open a PDF with it through the ribbon icon, the file context menu (“Open with PDFmark”), or the command palette. If you want double-click to work, enable **Take over .pdf by default** in the plugin settings — this needs an Obsidian restart and can be switched off at any time without affecting other PDF plugins.
 
-默认**不接管** `.pdf` 的打开方式，不会和你已有的 PDF 插件打架。用左侧图标、右键菜单「用 PDFmark 打开」或命令面板进入即可；想双击直接打开，在设置里打开「接管 .pdf」并重启 Obsidian。
+默认**不接管** `.pdf` 的打开方式，不会和你已有的 PDF 插件打架。用左侧图标、右键菜单「用 PDFmark 打开」或命令面板进入即可；想双击直接打开，在设置里打开「接管 .pdf 默认打开方式」并重启 Obsidian。
 
 ---
 
 ## Usage
 
 1. Open a PDF. The left rail holds the tools, the bottom bar holds the options for the active tool.
-2. **Select** — drag across text. A floating menu appears: highlight / underline / strike / note, seven colours, copy, quote. Selecting part of a line works: drag from the first character you want to the last.
+2. **Select** — drag across text. A floating menu appears: highlight / underline / strike / note, a six-colour quick row (the bottom bar holds all eight), copy, quote. Selecting part of a line works: drag from the first character you want to the last.
 3. **Pen / highlighter** — draw. Width and colour come from the bottom bar.
 4. **Shapes** — drag to create; drag inside to move; drag a corner to resize. Stroke width goes up to 13 pt, which is as heavy as a marker page mark ever needs.
 5. **Text box** — click once, type in the dialog, confirm. The bottom slider becomes **font size** (6–30 pt) for this tool. Click an existing box to edit it, drag to move it; with a box selected the slider resizes *that* box without touching the default for new ones.
@@ -96,7 +96,7 @@ Annotations are stored **inside your vault**, in the plugin's own data file (`.o
 
 - Nothing leaves the device; there is no sync service and no server.
 - Back up that data file if you reinstall or move vaults.
-- **Burn into PDF** writes the annotations into the file contents. A timestamped copy of the original is kept in `.obsidian/plugins/pdfmark/backup/`. Burning is one-way — afterwards the marks are part of the page and can no longer be edited separately, so keep the backup.
+- **Burn into PDF** writes the annotations into the file contents. A timestamped copy of the original is kept in `.obsidian/plugins/pdfmark/backups/`. Burning is one-way — afterwards the marks are part of the page and can no longer be edited separately, so keep the backup.
 - 批注存在库内的插件数据文件里，不改动你的 PDF 与笔记；只有你主动点「烧入 PDF」才会写入文件，并在插件目录留一份带时间戳的备份。烧入不可逆。
 
 ---
@@ -162,7 +162,7 @@ The feature set was inspired by reading tools the community already loves — In
 npm install
 npm run build      # bundles src/ into main.js (pdf.js worker + CMap + fonts inlined)
 npm run dev        # watch mode
-npm test           # headless Chrome regression suite (20 assertions)
+npm test           # headless Chrome regression suite (46 assertions)
 ```
 
 The build inlines every runtime asset into `main.js`, because the community installer only downloads `main.js`, `manifest.json` and `styles.css`.
@@ -170,6 +170,8 @@ The build inlines every runtime asset into `main.js`, because the community inst
 ---
 
 ## 中文说明
+
+下面集中写日常会用到的部分；安装、隐私、兼容性、开发见上方各节末尾的中文摘要。
 
 ### 它是什么
 
@@ -179,7 +181,7 @@ The build inlines every runtime asset into `main.js`, because the community inst
 
 打开 PDF 后，左侧是工具条，底部是当前工具的参数：
 
-1. **选中**：拖选文字，弹出菜单里选高亮 / 下划线 / 删除线 / 批注，可选 7 种颜色，也能复制或生成引用。支持只选半行、跨行选。
+1. **选中**：拖选文字，弹出菜单里选高亮 / 下划线 / 删除线 / 批注，菜单里有 6 种常用色（底栏是全部 8 种），也能复制或生成引用。支持只选半行、跨行选。
 2. **画笔 / 荧光笔**：直接写，粗细和颜色在底部调。
 3. **直线 / 方框 / 椭圆 / 箭头**：拖出一个，画完还能拖动、拉伸；粗细可调到 13 pt，再粗就没有使用场景了。
 4. **文字**：点一下页面，输入中英文，确定即可；底部滑块此时是**字号**（6–30 pt）。双击已存在的文字框可以改；选中某一张卡时拖滑块只改这一张，不影响以后新建的默认字号。
@@ -198,11 +200,11 @@ The build inlines every runtime asset into `main.js`, because the community inst
 
 ### 数据在哪
 
-批注保存在库内的 `.obsidian/plugins/pdfmark/data.json`，按 PDF 路径归档，不改动你的 PDF 和笔记。只有主动「烧入 PDF」才会写进文件，并在插件目录 `backup/` 留一份带时间戳的原始副本。换库或重装插件前请备份这个文件。
+批注保存在库内的 `.obsidian/plugins/pdfmark/data.json`，按 PDF 路径归档，不改动你的 PDF 和笔记。只有主动「烧入 PDF」才会写进文件，并在插件目录 `backups/` 留一份带时间戳的原始副本。换库或重装插件前请备份这个文件。
 
 ### 常见问题
 
-- **双击 PDF 还是用别的软件打开？** 默认不接管。设置里打开「接管 .pdf」并重启 Obsidian。
+- **双击 PDF 还是用别的软件打开？** 默认不接管。设置里打开「接管 .pdf 默认打开方式」并重启 Obsidian。
 - **扫描件选不中字？** 扫描件没有文字层，用画笔、方框或文字框标注。
 - **烧入后还能改吗？** 不能，批注已经成为页面内容。所以插件会先备份原文件，建议保留。
 - **会不会把我的文件传到网上？** 不会。插件没有任何网络请求。
