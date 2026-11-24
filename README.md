@@ -42,9 +42,9 @@ PDFmark 是一个 Obsidian 插件：直接在库里读 PDF，随手划线、写�
 
 **安装**：市场里搜 **PDFmark** 安装；或把 release 里的三个文件放进 `<库>/.obsidian/plugins/pdfmark/`，在「第三方插件」里启用。
 
-PDFmark does **not** take over `.pdf` by default. Open a PDF with it through the ribbon icon, the file context menu (“Open with PDFmark”), or the command palette. If you want double-click to work, enable **Take over .pdf by default** in the plugin settings — this needs an Obsidian restart and can be switched off at any time without affecting other PDF plugins.
+PDFmark does **not** take over `.pdf` by default. Open a PDF with it through the ribbon icon, the file context menu (“Open with PDFmark”), or the command palette. If you want double-click to work, enable **Take over .pdf by default** in the plugin settings: Obsidian then hands the PDF to PDFmark as soon as it opens, and PDFs already open are switched over too. It can be turned off at any time without affecting other PDF plugins.
 
-默认**不接管** `.pdf` 的打开方式，不会和你已有的 PDF 插件打架。用左侧图标、右键菜单「用 PDFmark 打开」或命令面板进入即可；想双击直接打开，在设置里打开「接管 .pdf 默认打开方式」并重启 Obsidian。
+默认**不接管** `.pdf` 的打开方式，不会和你已有的 PDF 插件打架。用左侧图标、右键菜单「用 PDFmark 打开」或命令面板进入即可；想双击直接打开，在设置里打开「接管 .pdf 默认打开方式」，之后打开 PDF 会自动换成 PDFmark 的阅读视图，已经打开的也会换过来，随时可以关掉。
 
 ---
 
@@ -224,7 +224,7 @@ The build inlines every runtime asset into `main.js`, because the community inst
 
 ### 常见问题
 
-- **双击 PDF 还是用别的软件打开？** 默认不接管。设置里打开「接管 .pdf 默认打开方式」并重启 Obsidian。
+- **双击 PDF 还是用别的软件打开？** 默认不接管。设置里打开「接管 .pdf 默认打开方式」，之后打开 PDF 会换成 PDFmark（已打开的也会换过来）。
 - **扫描件选不中字？** 扫描件没有文字层，用画笔、方框或文字框标注。
 - **烧入后还能改吗？** 不能，批注已经成为页面内容。所以插件会先备份原文件，建议保留。
 - **会不会把我的文件传到网上？** 不会。插件没有任何网络请求。

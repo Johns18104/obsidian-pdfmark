@@ -1,6 +1,18 @@
 # Changelog
 
-## 1.1.7 — the type warnings, and a correction to 1.1.6
+## 1.1.7 — “take over .pdf” now works, plus the type warnings
+
+**The take-over setting had never worked.** It relied on
+`registerExtensions(["pdf"], …)`, but Obsidian's own PDF reader is registered
+for that extension first and `ViewRegistry.registerExtensions()` throws rather
+than overwrite it — the throw was caught by a `try/catch` and logged, so the
+toggle looked enabled while every PDF still opened in the built-in viewer
+(with no tool rail, which is how this surfaced). The extension route is
+impossible by design; PDFmark now waits for a PDF to open in the built-in
+viewer and swaps that leaf to its own view. Restored tabs from a previous
+session never emit `file-open`, so the layout-ready pass covers those, and
+turning the setting on converts PDFs that are already open. No restart needed
+any more.
 
 The 1.1.6 notes said the ~300 `any` warnings "come from Obsidian's loosely typed
 API surface". That was wrong, and worth correcting: most of them started at
@@ -42,7 +54,9 @@ They are all gone now; the source lints at **2 warnings and 0 errors**.
   the same pixels and writes the same PDF. All 46 browser assertions still
   pass.
 - **So it stays checked:** `npm run typecheck` (`tsc --noEmit`) is now a
-  script, and the source compiles with zero errors.
+  script, and the source compiles with zero errors. The take-over swap moved
+  into `takeover.ts` so it could get a regression test of its own — the suite
+  is 47 assertions now.
 - **Still open, on purpose:** the last two warnings are `setWarning()` (use
   `setDestructive()`) and the declarative settings API — both need Obsidian
   **1.13.0**. Adopting them would raise `minAppVersion` and lock out everyone

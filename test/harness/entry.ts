@@ -7,6 +7,7 @@ import { PdfAnnotatorSettingTab } from "../../src/main";
 import { resolveLang, setLanguage } from "../../src/i18n";
 import { buildMarkdown } from "../../src/exporter";
 import { burnAnnotations } from "../../src/burn";
+import { adoptNativePdfLeaves } from "../../src/takeover";
 import { setUiLanguage, TFile, WorkspaceLeaf } from "obsidian";
 
 async function boot() {
@@ -62,6 +63,7 @@ async function boot() {
   (window as any).__buildMarkdown = buildMarkdown;
   (window as any).__resolveLang = resolveLang;
   (window as any).__setUiLanguage = setUiLanguage;
+  (window as any).__adoptNativePdfLeaves = adoptNativePdfLeaves;
   (window as any).setLang = (l: "zh" | "en" | "auto") => {
     plugin.settings.language = l;
     setLanguage(l);

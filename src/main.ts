@@ -20,6 +20,7 @@ import {
 } from "./types";
 import { AnnotStore } from "./store";
 import { PDFView } from "./view";
+import { adoptNativePdfLeaves } from "./takeover";
 import { LangSetting, setLanguage, t, tf } from "./i18n";
 
 /** Only the filesystem adapters have a real resource URL; mobile ones do not. */
@@ -50,13 +51,13 @@ export default class PdfAnnotatorPlugin extends Plugin {
 
     this.registerView(VIEW_TYPE_PDF, (leaf: WorkspaceLeaf) => new PDFView(leaf, this));
 
-    if (this.settings.takeOverPdf) {
-      try {
-        this.registerExtensions(["pdf"], VIEW_TYPE_PDF);
-      } catch (e) {
-        console.error("[pdfmark] take over failed", e);
-      }
-    }
+    // Obsidian's own PDF viewer already owns the "pdf" extension, and its
+    // ViewRegistry throws rather than overwrite it, so registerExtensions()
+    // can never take over. Instead, catch a PDF as it opens in the built-in
+    // viewer and swap that leaf over to our view. Registered unconditionally
+    // so the setting can be switched on later without a plugin reload; every
+    // call exits immediately while the setting is off.
+    this.watchPdfOpens();
 
     this.addRibbonIcon("book-open", t("用 PDFmark 打开当前文件", "Open the current file with PDFmark"), () => this.openActivePdf());
 
@@ -119,6 +120,31 @@ export default class PdfAnnotatorPlugin extends Plugin {
     const file = this.app.workspace.getActiveFile();
     if (file && file.extension.toLowerCase() === "pdf") void this.openPdf(file);
     else new Notice(t("请先选中一个 PDF 文件", "Select a PDF file first"));
+  }
+
+  /**
+   * Obsidian opens .pdf in its built-in viewer, whose view type is literally
+   * "pdf". registerExtensions() cannot claim an extension that is already
+   * registered (ViewRegistry throws), so the take-over has to happen after the
+   * fact: let the built-in viewer attach, then swap the leaf's view for ours.
+   * Restored tabs from the previous session never emit file-open, so the
+   * layout-ready scan covers those.
+   */
+  private watchPdfOpens() {
+    this.registerEvent(this.app.workspace.on("file-open", () => this.adoptPdf()));
+    // On some paths the built-in view is attached a tick after the event.
+    this.registerEvent(this.app.workspace.on("layout-change", () => this.adoptPdf()));
+    this.app.workspace.onLayoutReady(() => this.adoptPdf());
+  }
+
+  /**
+   * Swap every built-in PDF leaf over to our view, or only the one showing
+   * `onlyPath`. Safe to call often: it does nothing when no such leaf exists,
+   * and our own view type is not "pdf", so it cannot re-trigger itself.
+   */
+  adoptPdf(onlyPath?: string) {
+    if (!this.settings.takeOverPdf) return;
+    adoptNativePdfLeaves(this.app.workspace, VIEW_TYPE_PDF, onlyPath);
   }
 
   assetUrl(rel: string): string {
@@ -199,13 +225,18 @@ export class PdfAnnotatorSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName(t("接管 .pdf 默认打开方式", "Take over .pdf by default"))
       .setDesc(
-        t("开启后双击 PDF 直接用本插件打开，需要重启 Obsidian 生效。关闭时完全不影响其他 PDF 插件，可用右键菜单「用 PDFmark 打开」进入。", "Double-clicking a PDF opens it in PDFmark. Needs an Obsidian restart. When off, other PDF plugins are untouched — use “Open with PDFmark” from the context menu.")
+        t("开启后双击 PDF 会自动换成本插件的阅读视图（立即生效，已打开的 PDF 也会接手）。关闭时完全不影响其他 PDF 插件，可用右键菜单「用 PDFmark 打开」进入。", "Double-clicking a PDF switches it to PDFmark's reader right away, including PDFs that are already open. When off, other PDF plugins are untouched — use “Open with PDFmark” from the context menu.")
       )
       .addToggle((tg) =>
         tg.setValue(this.plugin.settings.takeOverPdf).onChange(async (v) => {
           this.plugin.settings.takeOverPdf = v;
           await this.plugin.saveSettings();
-          new Notice(v ? t("已开启，重启 Obsidian 后生效", "On — restart Obsidian to apply") : t("已关闭，重启 Obsidian 后生效", "Off — restart Obsidian to apply"));
+          if (v) {
+            this.plugin.adoptPdf();
+            new Notice(t("已开启：打开 PDF 会用 PDFmark 显示", "On — PDFs open in PDFmark"));
+          } else {
+            new Notice(t("已关闭：新的 PDF 用 Obsidian 自带阅读器打开", "Off — new PDFs open in Obsidian's viewer"));
+          }
         })
       );
 

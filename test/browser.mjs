@@ -1255,6 +1255,49 @@ async function main() {
     JSON.stringify(noteRes)
   );
 
+  // ---------- the .pdf take-over ----------
+  // Obsidian's built-in viewer already owns the "pdf" extension, so the swap
+  // happens on the leaf after it opens. This checks the leaf-moving logic
+  // itself: only built-in PDF leaves, only the requested path, and nothing
+  // that has no file to reopen with.
+  const adopt = await page.evaluate(() => {
+    const made = [];
+    const leaf = (state) => ({
+      getViewState: () => ({ state }),
+      setViewState: (vs) => {
+        made.push(vs);
+        return Promise.resolve();
+      },
+    });
+    const host = (states) => ({ getLeavesOfType: (t) => (t === "pdf" ? states.map(leaf) : []) });
+    const all = window.__adoptNativePdfLeaves(
+      host([{ file: "a.pdf" }, { file: "b.pdf" }, {}]),
+      "pdfmark-view"
+    );
+    const one = window.__adoptNativePdfLeaves(
+      host([{ file: "a.pdf" }, { file: "b.pdf" }]),
+      "pdfmark-view",
+      "b.pdf"
+    );
+    const none = window.__adoptNativePdfLeaves(host([]), "pdfmark-view");
+    return {
+      all,
+      one,
+      none,
+      types: made.map((m) => m.type + ":" + m.state.file),
+    };
+  });
+  report(
+    "接管 .pdf：内置 PDF 标签页被换成插件视图（无文件的跳过）",
+    adopt.all.length === 2 &&
+      adopt.all[0] === "a.pdf" &&
+      adopt.one.length === 1 &&
+      adopt.one[0] === "b.pdf" &&
+      adopt.none.length === 0 &&
+      adopt.types.every((t) => t.startsWith("pdfmark-view:")),
+    JSON.stringify(adopt)
+  );
+
   await page.screenshot({ path: "test/shot-final.png" });
   await page.evaluate(() => window.view.flushSave());
   await browser.close();
