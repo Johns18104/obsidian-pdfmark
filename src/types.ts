@@ -1,3 +1,5 @@
+import type { LangSetting } from "./i18n";
+
 export const VIEW_TYPE_PDF = "pdfmark-view";
 
 export interface Pt {
@@ -96,6 +98,8 @@ export interface FileRecord {
 }
 
 export interface PluginSettings {
+  /** UI language; "auto" follows the Obsidian / system language. */
+  language: LangSetting;
   takeOverPdf: boolean;
   nightMode: boolean;
   cropMargins: boolean;
@@ -119,6 +123,7 @@ export interface PluginSettings {
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
+  language: "auto",
   takeOverPdf: false,
   nightMode: false,
   cropMargins: false,

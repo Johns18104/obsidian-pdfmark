@@ -31,6 +31,7 @@ import {
 import { burnAnnotations } from "./burn";
 import { MemoryCMapReaderFactory, MemoryStandardFontDataFactory } from "./pdfres";
 import { TEXT_FONT, layoutText } from "./richtext";
+import { Pair, isEnglish, t, tf, tp } from "./i18n";
 import { buildMarkdown } from "./exporter";
 import { ConfirmModal, TextInputModal } from "./modal";
 
@@ -126,17 +127,25 @@ interface PageEl {
   layout?: TextLayout | null;
 }
 
-const TOOLS: { id: Tool; icon: string; label: string; tag: string }[] = [
-  { id: "select", icon: "mouse-pointer", label: "选中 / 划词", tag: "选中" },
-  { id: "pen", icon: "pencil", label: "画笔", tag: "画笔" },
-  { id: "highlighter", icon: "highlighter", label: "荧光笔", tag: "荧光" },
-  { id: "eraser", icon: "eraser", label: "橡皮（整笔擦除）", tag: "橡皮" },
-  { id: "line", icon: "minus", label: "直线", tag: "直线" },
-  { id: "rect", icon: "square", label: "方框", tag: "方框" },
-  { id: "ellipse", icon: "circle", label: "椭圆", tag: "椭圆" },
-  { id: "arrow", icon: "arrow-up-right", label: "箭头", tag: "箭头" },
-  { id: "note", icon: "sticky-note", label: "便签", tag: "便签" },
-  { id: "textbox", icon: "type", label: "文字批注", tag: "文字" },
+interface ToolDef {
+  id: Tool;
+  icon: string;
+  /** [zh, en] — resolved when the rail is drawn, not at module load. */
+  label: Pair;
+  tag: Pair;
+}
+
+const TOOLS: ToolDef[] = [
+  { id: "select", icon: "mouse-pointer", label: ["选中 / 划词", "Select / text"], tag: ["选中", "Select"] },
+  { id: "pen", icon: "pencil", label: ["画笔", "Pen"], tag: ["画笔", "Pen"] },
+  { id: "highlighter", icon: "highlighter", label: ["荧光笔", "Highlighter"], tag: ["荧光", "Marker"] },
+  { id: "eraser", icon: "eraser", label: ["橡皮（整笔擦除）", "Eraser (whole stroke)"], tag: ["橡皮", "Eraser"] },
+  { id: "line", icon: "minus", label: ["直线", "Line"], tag: ["直线", "Line"] },
+  { id: "rect", icon: "square", label: ["方框", "Box"], tag: ["方框", "Box"] },
+  { id: "ellipse", icon: "circle", label: ["椭圆", "Oval"], tag: ["椭圆", "Oval"] },
+  { id: "arrow", icon: "arrow-up-right", label: ["箭头", "Arrow"], tag: ["箭头", "Arrow"] },
+  { id: "note", icon: "sticky-note", label: ["便签", "Note"], tag: ["便签", "Note"] },
+  { id: "textbox", icon: "type", label: ["文字批注", "Text"], tag: ["文字", "Text"] },
 ];
 
 /** setIcon silently renders nothing when the icon name is unknown to this Obsidian build. */
@@ -260,7 +269,7 @@ export class PDFView extends ItemView {
 
   async onLoadFile(file: TFile) {
     if (file.extension.toLowerCase() !== "pdf") {
-      new Notice("PDFmark 只处理 .pdf 文件");
+      new Notice(t("PDFmark 只处理 .pdf 文件", "PDFmark only works with .pdf files"));
       return;
     }
     this.file = file;
@@ -281,7 +290,7 @@ export class PDFView extends ItemView {
     this.optsEl = root.createDiv("pdfann-opts");
     this.progressEl = root.createDiv("pdfann-progress");
     this.emptyEl = root.createDiv("pdfann-empty-state");
-    this.emptyEl.setText("右键一个 PDF 文件 →「用 PDFmark 打开」");
+    this.emptyEl.setText(t("右键一个 PDF 文件 →「用 PDFmark 打开」", "Right-click a PDF → “Open with PDFmark”"));
 
     this.buildBar();
     this.buildRail();
@@ -306,7 +315,7 @@ export class PDFView extends ItemView {
     bar.empty();
 
     const nav = bar.createDiv("pdfann-nav");
-    const prev = nav.createEl("button", { cls: "pdfann-icon-btn", attr: { "aria-label": "上一页" } });
+    const prev = nav.createEl("button", { cls: "pdfann-icon-btn", attr: { "aria-label": t("上一页", "Previous page") } });
     setIcon(prev, "chevron-left");
     prev.onclick = () => this.goPage(this.currentPage - 1);
 
@@ -327,7 +336,7 @@ export class PDFView extends ItemView {
     };
     this.totalEl = nav.createSpan({ cls: "pdfann-total", text: "/ 0" });
 
-    const next = nav.createEl("button", { cls: "pdfann-icon-btn", attr: { "aria-label": "下一页" } });
+    const next = nav.createEl("button", { cls: "pdfann-icon-btn", attr: { "aria-label": t("下一页", "Next page") } });
     setIcon(next, "chevron-right");
     next.onclick = () => this.goPage(this.currentPage + 1);
 
@@ -339,12 +348,12 @@ export class PDFView extends ItemView {
     const zi = zoom.createEl("button", { cls: "pdfann-icon-btn" });
     setIcon(zi, "zoom-in");
     zi.onclick = () => this.setScale(this.scale * 1.15);
-    const fit = zoom.createEl("button", { cls: "pdfann-text-btn", text: "适宽" });
+    const fit = zoom.createEl("button", { cls: "pdfann-text-btn", text: t("适宽", "Fit") });
     fit.onclick = () => this.fitWidth();
 
     const sp = bar.createDiv("pdfann-spacer");
 
-    const night = bar.createEl("button", { cls: "pdfann-icon-btn" + (this.settings.nightMode ? " is-on" : ""), attr: { "aria-label": "夜间反色" } });
+    const night = bar.createEl("button", { cls: "pdfann-icon-btn" + (this.settings.nightMode ? " is-on" : ""), attr: { "aria-label": t("夜间反色", "Night mode") } });
     setIcon(night, "moon");
     night.onclick = async () => {
       this.settings.nightMode = !this.settings.nightMode;
@@ -353,7 +362,7 @@ export class PDFView extends ItemView {
       await this.plugin.saveSettings();
     };
 
-    const crop = bar.createEl("button", { cls: "pdfann-icon-btn" + (this.settings.cropMargins ? " is-on" : ""), attr: { "aria-label": "裁白边" } });
+    const crop = bar.createEl("button", { cls: "pdfann-icon-btn" + (this.settings.cropMargins ? " is-on" : ""), attr: { "aria-label": t("裁白边", "Crop margins") } });
     setIcon(crop, "crop");
     crop.onclick = async () => {
       this.settings.cropMargins = !this.settings.cropMargins;
@@ -365,7 +374,7 @@ export class PDFView extends ItemView {
       await this.relayout(true);
     };
 
-    const side = bar.createEl("button", { cls: "pdfann-icon-btn", attr: { "aria-label": "侧栏" } });
+    const side = bar.createEl("button", { cls: "pdfann-icon-btn", attr: { "aria-label": t("侧栏", "Sidebar") } });
     setIcon(side, "panel-right");
     side.onclick = () => {
       this.settings.sidebarOpen = !this.settings.sidebarOpen;
@@ -374,7 +383,7 @@ export class PDFView extends ItemView {
       this.afterLayoutChange();
     };
 
-    const more = bar.createEl("button", { cls: "pdfann-icon-btn", attr: { "aria-label": "更多" } });
+    const more = bar.createEl("button", { cls: "pdfann-icon-btn", attr: { "aria-label": t("更多", "More") } });
     setIcon(more, "more-horizontal");
     more.onclick = (ev: MouseEvent) => this.openMenu(ev);
   }
@@ -382,20 +391,20 @@ export class PDFView extends ItemView {
   private openMenu(ev: MouseEvent) {
     const menu = new Menu();
     menu.addItem((i) =>
-      i.setTitle("导出批注为 Markdown").setIcon("file-text").onClick(() => this.exportMarkdown())
+      i.setTitle(t("导出批注为 Markdown", "Export annotations to Markdown")).setIcon("file-text").onClick(() => this.exportMarkdown())
     );
     menu.addItem((i) =>
-      i.setTitle("复制当前页引用").setIcon("quote").onClick(() => this.copyCitation())
+      i.setTitle(t("复制当前页引用", "Copy a citation for this page")).setIcon("quote").onClick(() => this.copyCitation())
     );
     menu.addSeparator();
     menu.addItem((i) =>
-      i.setTitle("烧入 PDF（不可逆，自动备份）").setIcon("flame").onClick(() => this.burn())
+      i.setTitle(t("烧入 PDF（不可逆，自动备份）", "Burn into PDF (permanent, backs up first)")).setIcon("flame").onClick(() => this.burn())
     );
-    menu.addItem((i) => i.setTitle("重置缩放").setIcon("maximize").onClick(() => this.setScale(1)));
+    menu.addItem((i) => i.setTitle(t("重置缩放", "Reset zoom")).setIcon("maximize").onClick(() => this.setScale(1)));
     menu.addSeparator();
-    menu.addItem((i) => i.setTitle("清除本页批注").setIcon("trash").onClick(() => this.clearPage()));
+    menu.addItem((i) => i.setTitle(t("清除本页批注", "Clear annotations on this page")).setIcon("trash").onClick(() => this.clearPage()));
     menu.addItem((i) =>
-      i.setTitle("清除全文批注").setIcon("trash-2").onClick(() => this.clearAll())
+      i.setTitle(t("清除全文批注", "Clear all annotations")).setIcon("trash-2").onClick(() => this.clearAll())
     );
     menu.showAtMouseEvent(ev);
   }
@@ -403,15 +412,16 @@ export class PDFView extends ItemView {
   private buildRail() {
     const rail = this.railEl;
     rail.empty();
-    for (const t of TOOLS) {
+    for (const def of TOOLS) {
       const b = rail.createEl("button", {
-        cls: "pdfann-tool" + (this.tool === t.id ? " is-active" : ""),
-        attr: { "aria-label": t.label, "data-tool": t.id },
+        cls: "pdfann-tool" + (this.tool === def.id ? " is-active" : ""),
+        attr: { "aria-label": tp(def.label), "data-tool": def.id },
       });
       const ic = b.createSpan({ cls: "pdfann-tool-icon" });
-      setToolIcon(ic, t.icon, t.tag.slice(0, 1));
-      b.createSpan({ cls: "pdfann-tool-label", text: t.tag });
-      b.onclick = () => this.setTool(t.id);
+      const tag = tp(def.tag);
+      setToolIcon(ic, def.icon, tag.slice(0, 1));
+      b.createSpan({ cls: "pdfann-tool-label", text: tag });
+      b.onclick = () => this.setTool(def.id);
     }
     rail.createDiv("pdfann-rail-sep");
     const mkBtn = (icon: string, tag: string, label: string, fn: () => void) => {
@@ -421,8 +431,24 @@ export class PDFView extends ItemView {
       b.createSpan({ cls: "pdfann-tool-label", text: tag });
       b.onclick = fn;
     };
-    mkBtn("undo-2", "撤销", "撤销", () => this.undo());
-    mkBtn("redo-2", "重做", "重做", () => this.redo());
+    mkBtn("undo-2", t("撤销", "Undo"), t("撤销", "Undo"), () => this.undo());
+    mkBtn("redo-2", t("重做", "Redo"), t("重做", "Redo"), () => this.redo());
+  }
+
+  /** Re-render every piece of chrome after the language setting changed. */
+  refreshLanguage() {
+    if (!this.barEl) return;
+    this.buildBar();
+    this.totalEl.setText("/ " + (this.pdfDoc ? this.pdfDoc.numPages : 0));
+    this.syncPageInput();
+    this.buildRail();
+    const lockBtn = this.railEl.querySelector('.pdfann-tool[data-tool="select"]');
+    if (lockBtn) lockBtn.toggleClass("is-on", this.selectLock);
+    this.buildOptions();
+    this.emptyEl.setText(t("右键一个 PDF 文件 →「用 PDFmark 打开」", "Right-click a PDF → “Open with PDFmark”"));
+    if (this.file) this.renderSidebar();
+    // Page canvases only carry artwork; repaint so hit-area titles follow suit.
+    for (const pe of this.pages) if (pe.viewport) this.paintPage(pe);
   }
 
   // ---------------------------------------------------------------- loading
@@ -437,7 +463,7 @@ export class PDFView extends ItemView {
       this.pendingPath = this.file.path;
       return;
     }
-    this.showProgress("正在打开 PDF…");
+    this.showProgress(t("正在打开 PDF…", "Opening PDF…"));
     configureWorker(this.plugin);
     this.destroyPages();
     this.pdfDoc = null;
@@ -445,7 +471,7 @@ export class PDFView extends ItemView {
       const buf = await this.app.vault.readBinary(this.file);
       this.pdfBytes = new Uint8Array(buf);
     } catch (e) {
-      this.showProgress("读取文件失败：" + e);
+      this.showProgress(t("读取文件失败：", "Could not read the file: ") + e);
       return;
     }
     try {
@@ -462,7 +488,7 @@ export class PDFView extends ItemView {
       };
       this.pdfDoc = await pdfjsLib.getDocument(params).promise;
     } catch (e) {
-      this.showProgress("PDF 解析失败：" + (e && e.message ? e.message : e));
+      this.showProgress(t("PDF 解析失败：", "Could not open the PDF: ") + (e && e.message ? e.message : e));
       return;
     }
     this.numPages = this.pdfDoc.numPages;
@@ -1140,22 +1166,22 @@ export class PDFView extends ItemView {
 
   // ---------------------------------------------------------------- tools ui
 
-  setTool(t: Tool) {
-    if (t === "select" && this.tool === "select") {
+  setTool(tool: Tool) {
+    if (tool === "select" && this.tool === "select") {
       this.selectLock = !this.selectLock;
-      new Notice(this.selectLock ? "已锁定选中：拖动即可划选文字" : "已解锁：在触屏上拖动为滚动页面");
+      new Notice(this.selectLock ? t("已锁定选中：拖动即可划选文字", "Selection locked: drag to select text") : t("已解锁：在触屏上拖动为滚动页面", "Unlocked: dragging scrolls the page on touch"));
     }
-    this.tool = t;
+    this.tool = tool;
     this.selectedId = null;
     this.removePopup();
     this.clearSelectionPreview();
     this.railEl.querySelectorAll(".pdfann-tool[data-tool]").forEach((el) => {
-      el.toggleClass("is-active", (el as HTMLElement).dataset.tool === t);
+      el.toggleClass("is-active", (el as HTMLElement).dataset.tool === tool);
     });
     const lockBtn = this.railEl.querySelector('.pdfann-tool[data-tool="select"]');
     if (lockBtn) lockBtn.toggleClass("is-on", this.selectLock);
-    this.pagesEl.toggleClass("pdfann-draw-active", t !== "select");
-    this.pagesEl.toggleClass("pdfann-erase-active", t === "eraser");
+    this.pagesEl.toggleClass("pdfann-draw-active", tool !== "select");
+    this.pagesEl.toggleClass("pdfann-erase-active", tool === "eraser");
     this.pagesEl.toggleClass("pdfann-sel-lock", this.selectLock);
     this.updateOptions();
     for (const pe of this.pages) if (pe.viewport) this.paintPage(pe);
@@ -1174,7 +1200,7 @@ export class PDFView extends ItemView {
       d.onclick = () => this.pickColor(c);
     }
     const wrap = el.createDiv("pdfann-width");
-    wrap.createSpan({ cls: "pdfann-width-label", text: "粗细" });
+    wrap.createSpan({ cls: "pdfann-width-label", text: t("粗细", "Width") });
     const range = wrap.createEl("input", { type: "range", cls: "pdfann-range" });
     range.min = "0.5";
     range.max = "30";
@@ -1201,9 +1227,9 @@ export class PDFView extends ItemView {
     range.addEventListener("pointerup", disarmUndo);
     range.addEventListener("blur", disarmUndo);
     const extra = el.createDiv("pdfann-opts-extra");
-    const del = extra.createEl("button", { cls: "pdfann-text-btn", text: "删除所选" });
+    const del = extra.createEl("button", { cls: "pdfann-text-btn", text: t("删除所选", "Delete selected") });
     del.onclick = () => this.deleteSelected();
-    const clearInk = extra.createEl("button", { cls: "pdfann-text-btn", text: "清除本页墨迹" });
+    const clearInk = extra.createEl("button", { cls: "pdfann-text-btn", text: t("清除本页墨迹", "Clear ink on this page") });
     clearInk.onclick = () => this.clearPage("ink");
     this.updateOptions();
   }
@@ -1253,12 +1279,20 @@ export class PDFView extends ItemView {
     return typeof w === "number" ? w : this.currentWidth();
   }
 
+  /** "第 3 页" / "page 3" — used in citations and the sidebar. */
+  private pageLabel(page: number): string {
+    return tf("第 {0} 页", "page {0}", page);
+  }
+
   private updateOptions() {
     if (this.optsLabelEl) {
       const sel = this.selectedId ? this.selectedAnnot() : null;
-      const t = TOOLS.find((x) => x.id === (sel ? sel.type : this.tool));
-      const name = t ? t.label : "已选中";
-      this.optsLabelEl.setText(sel ? `已选中${name.split(" / ")[0]}　` : `${name}　`);
+      const def = TOOLS.find((x) => x.id === (sel ? sel.type : this.tool));
+      const name = def ? tp(def.label) : t("已选中", "Selected");
+      const short = name.split(" / ")[0];
+      // A full-width space reads better next to Chinese, a normal one next to Latin.
+      const gap = isEnglish() ? " " : "　";
+      this.optsLabelEl.setText(sel ? tf("已选中{0}", "Selected: {0}", short) + gap : short + gap);
     }
     const color = this.selectedId ? this.selectedAnnot()?.color : this.currentColor();
     this.optsEl.querySelectorAll(".pdfann-swatch").forEach((el) => {
@@ -1267,7 +1301,7 @@ export class PDFView extends ItemView {
     const selA = this.selectedId ? this.selectedAnnot() : null;
     const fontSize = this.isFontSize(selA);
     const wl = this.optsEl.querySelector(".pdfann-width-label");
-    if (wl) wl.setText(fontSize ? "字号" : "粗细");
+    if (wl) wl.setText(fontSize ? t("字号", "Size") : t("粗细", "Width"));
     const showWidth = this.tool !== "select" || !!this.selectedId;
     this.optsEl.toggleClass("pdfann-hide-width", !showWidth);
     const range = this.optsEl.querySelector(".pdfann-range") as HTMLInputElement | null;
@@ -1676,7 +1710,7 @@ export class PDFView extends ItemView {
 
     if (!layout || !layout.cells.length) {
       this.clearSelectionPreview();
-      new Notice("这一页没有文字层（可能是扫描件），可用画笔或方框标注", 2600);
+      new Notice(t("这一页没有文字层（可能是扫描件），可用画笔或方框标注", "No text layer on this page (probably a scan) — use the pen or shapes"), 2600);
       return;
     }
 
@@ -1705,7 +1739,7 @@ export class PDFView extends ItemView {
     const text = rangeText(layout, anchor, focus);
     if (!rects.length || !text) {
       this.clearSelectionPreview();
-      new Notice("没有选中文字，换个位置拖选试试", 2200);
+      new Notice(t("没有选中文字，换个位置拖选试试", "No text selected — try dragging elsewhere"), 2200);
       return;
     }
     this.showTextPopup(pe, pe.num, rects, text, end.x, end.y);
@@ -1820,11 +1854,11 @@ export class PDFView extends ItemView {
       this.removePopup();
       this.clearSelectionPreview();
     };
-    mk("高亮").onclick = () => apply("highlight");
-    mk("下划线").onclick = () => apply("underline");
-    mk("删除线").onclick = () => apply("strike");
-    mk("批注").onclick = async () => {
-      const note = await TextInputModal.open(this.app, "添加批注", "");
+    mk(t("高亮", "Highlight")).onclick = () => apply("highlight");
+    mk(t("下划线", "Underline")).onclick = () => apply("underline");
+    mk(t("删除线", "Strikethrough")).onclick = () => apply("strike");
+    mk(t("批注", "Note")).onclick = async () => {
+      const note = await TextInputModal.open(this.app, t("添加批注", "Add note"), "");
       if (!note) return;
       this.pushUndo();
       const a: TextMark = {
@@ -1858,16 +1892,16 @@ export class PDFView extends ItemView {
       };
     }
     row.createDiv("pdfann-popup-sep");
-    mk("复制").onclick = () => {
+    mk(t("复制", "Copy")).onclick = () => {
       navigator.clipboard.writeText(text);
-      new Notice("已复制选中文字");
+      new Notice(t("已复制选中文字", "Selected text copied"));
       this.removePopup();
       this.clearSelectionPreview();
     };
-    mk("引用").onclick = () => {
-      const link = `[[${this.file!.name}#page=${page}|第 ${page} 页]]`;
+    mk(t("引用", "Cite")).onclick = () => {
+      const link = `[[${this.file!.name}#page=${page}|${this.pageLabel(page)}]]`;
       navigator.clipboard.writeText(`「${text}」（${link}）`);
-      new Notice("已复制引用");
+      new Notice(t("已复制引用", "Citation copied"));
       this.removePopup();
       this.clearSelectionPreview();
     };
@@ -2238,7 +2272,7 @@ export class PDFView extends ItemView {
 
   private async computeCrops() {
     if (!this.file || !this.pdfDoc) return;
-    this.showProgress("正在分析页边距…");
+    this.showProgress(t("正在分析页边距…", "Measuring margins…"));
     const n = this.numPages;
     let i = 1;
     const worker = async () => {
@@ -2261,7 +2295,7 @@ export class PDFView extends ItemView {
 
   private async createNote(pe: PageEl, ev: PointerEvent) {
     const p = this.toPdf(pe, ev.clientX, ev.clientY);
-    const text = await TextInputModal.open(this.app, "添加批注", "");
+    const text = await TextInputModal.open(this.app, t("添加批注", "Add note"), "");
     if (!text) return;
     this.pushUndo();
     const a: NoteAnnot = {
@@ -2282,7 +2316,7 @@ export class PDFView extends ItemView {
   }
 
   private async editNote(n: NoteAnnot) {
-    const text = await TextInputModal.open(this.app, "编辑批注", n.text);
+    const text = await TextInputModal.open(this.app, t("编辑批注", "Edit note"), n.text);
     if (text === null) return;
     this.pushUndo();
     if (!text.trim()) {
@@ -2302,7 +2336,7 @@ export class PDFView extends ItemView {
     const vh = pe.viewport ? pe.viewport.height : 800;
     p.x = Math.max(4, Math.min(p.x, vw - 60));
     p.y = Math.min(p.y, vh - 30);
-    const text = await TextInputModal.open(this.app, "添加文字批注", "");
+    const text = await TextInputModal.open(this.app, t("添加文字批注", "Add text"), "");
     if (!text || !text.trim()) return;
     this.pushUndo();
     const a: TextBoxAnnot = {
@@ -2325,7 +2359,7 @@ export class PDFView extends ItemView {
   }
 
   private async editTextBox(a: TextBoxAnnot) {
-    const text = await TextInputModal.open(this.app, "编辑文字批注", a.text);
+    const text = await TextInputModal.open(this.app, t("编辑文字批注", "Edit text"), a.text);
     if (text === null) return;
     this.pushUndo();
     if (!text.trim()) {
@@ -2416,7 +2450,7 @@ export class PDFView extends ItemView {
 
   undo() {
     if (!this.undoStack.length) {
-      new Notice("没有可撤销的操作");
+      new Notice(t("没有可撤销的操作", "Nothing to undo"));
       return;
     }
     this.redoStack.push(this.snapshot());
@@ -2425,7 +2459,7 @@ export class PDFView extends ItemView {
 
   redo() {
     if (!this.redoStack.length) {
-      new Notice("没有可重做的操作");
+      new Notice(t("没有可重做的操作", "Nothing to redo"));
       return;
     }
     this.undoStack.push(this.snapshot());
@@ -2465,7 +2499,7 @@ export class PDFView extends ItemView {
     const tabs = side.createDiv("pdfann-tabs");
     const t1 = tabs.createEl("button", {
       cls: "pdfann-tab" + (this.sideTab === "annots" ? " is-active" : ""),
-      text: "批注",
+      text: t("批注", "Notes"),
     });
     t1.onclick = () => {
       this.sideTab = "annots";
@@ -2473,7 +2507,7 @@ export class PDFView extends ItemView {
     };
     const t2 = tabs.createEl("button", {
       cls: "pdfann-tab" + (this.sideTab === "outline" ? " is-active" : ""),
-      text: "大纲",
+      text: t("大纲", "Outline"),
     });
     t2.onclick = () => {
       this.sideTab = "outline";
@@ -2484,20 +2518,26 @@ export class PDFView extends ItemView {
     if (this.sideTab === "annots") {
       const annots = this.store.annotsOf(this.file.path).slice().sort((a, b) => a.page - b.page || a.created - b.created);
       if (!annots.length) {
-        body.createDiv({ cls: "pdfann-empty", text: "还没有批注。\n选中文字后可以高亮，或用画笔直接标注。" });
-        const b = body.createEl("button", { cls: "pdfann-text-btn", text: "导出为 Markdown 笔记" });
+        body.createDiv({
+          cls: "pdfann-empty",
+          text: t(
+            "还没有批注。\n选中文字后可以高亮，或用画笔直接标注。",
+            "No annotations yet.\nSelect text to highlight it, or draw with the pen."
+          ),
+        });
+        const b = body.createEl("button", { cls: "pdfann-text-btn", text: t("导出为 Markdown 笔记", "Export as a Markdown note") });
         b.onclick = () => this.exportMarkdown();
         return;
       }
       const count = annots.length;
       const head = body.createDiv("pdfann-side-head");
-      head.createSpan({ text: `${count} 条批注` });
-      const ex = head.createEl("button", { cls: "pdfann-text-btn", text: "导出" });
+      head.createSpan({ text: tf("{0} 条批注", "{0} annotations", count) });
+      const ex = head.createEl("button", { cls: "pdfann-text-btn", text: t("导出", "Export") });
       ex.onclick = () => this.exportMarkdown();
       let lastPage = -1;
       for (const a of annots) {
         if (a.page !== lastPage) {
-          body.createDiv({ cls: "pdfann-side-page", text: "第 " + a.page + " 页" });
+          body.createDiv({ cls: "pdfann-side-page", text: tf("第 {0} 页", "Page {0}", a.page) });
           lastPage = a.page;
         }
         const item = body.createDiv("pdfann-annot-item");
@@ -2509,21 +2549,21 @@ export class PDFView extends ItemView {
         dot.style.background = (a as any).color || "#888";
         const main = item.createDiv("pdfann-annot-main");
         const label: string = {
-          highlight: "高亮",
-          underline: "下划线",
-          strike: "删除线",
-          ink: "手写",
-          line: "直线",
-          rect: "方框",
-          ellipse: "椭圆",
-          arrow: "箭头",
-          note: "便签",
-          textbox: "文字",
+          highlight: t("高亮", "Highlight"),
+          underline: t("下划线", "Underline"),
+          strike: t("删除线", "Strikethrough"),
+          ink: t("手写", "Ink"),
+          line: t("直线", "Line"),
+          rect: t("方框", "Box"),
+          ellipse: t("椭圆", "Oval"),
+          arrow: t("箭头", "Arrow"),
+          note: t("便签", "Note"),
+          textbox: t("文字", "Text"),
         }[a.type] as string;
-        const t = main.createDiv("pdfann-annot-text");
-        t.setText(
+        const textEl = main.createDiv("pdfann-annot-text");
+        textEl.setText(
           a.type === "ink"
-            ? "手写笔迹"
+            ? t("手写笔迹", "Ink stroke")
             : a.type === "note" || a.type === "textbox"
             ? (a as any).text
             : (a as TextMark).text || label
@@ -2546,14 +2586,14 @@ export class PDFView extends ItemView {
     } else {
       const outline = await this.getOutline();
       if (!outline || !outline.length) {
-        body.createDiv({ cls: "pdfann-empty", text: "这份 PDF 没有书签目录。" });
+        body.createDiv({ cls: "pdfann-empty", text: t("这份 PDF 没有书签目录。", "This PDF has no bookmarks.") });
         return;
       }
       const renderItems = (items: any[], host: HTMLElement, depth: number) => {
         for (const it of items) {
           const row = host.createDiv("pdfann-outline-item");
           row.style.paddingLeft = 8 + depth * 12 + "px";
-          row.setText(it.title || "(无标题)");
+          row.setText(it.title || t("(无标题)", "(untitled)"));
           row.onclick = async () => {
             const page = await this.destToPage(it.dest);
             if (page) this.goPage(page);
@@ -2637,26 +2677,26 @@ export class PDFView extends ItemView {
     if (!this.file) return;
     const all = this.store.annotsOf(this.file.path).filter((a) => a.page === this.currentPage);
     const quoted = all.filter((a) => a.type === "highlight" || a.type === "underline" || a.type === "strike") as TextMark[];
-    const link = `[[${this.file.name}#page=${this.currentPage}|第 ${this.currentPage} 页]]`;
+    const link = `[[${this.file.name}#page=${this.currentPage}|${this.pageLabel(this.currentPage)}]]`;
     let body = "";
     if (quoted.length) {
-      body = quoted.map((q) => `「${q.text.trim()}」（第 ${q.page} 页）`).join("\n");
+      body = quoted.map((q) => tf("「{0}」（第 {1} 页）", "“{0}” (page {1})", q.text.trim(), q.page)).join("\n");
     } else {
-      body = `（第 ${this.currentPage} 页）`;
+      body = tf("（第 {0} 页）", "(page {0})", this.currentPage);
     }
     await navigator.clipboard.writeText(`${body}\n${link}`);
-    new Notice("已复制引用");
+    new Notice(t("已复制引用", "Citation copied"));
   }
 
   private async exportMarkdown() {
     if (!this.file) return;
     const annots = this.store.annotsOf(this.file.path);
     if (!annots.length) {
-      new Notice("这个 PDF 还没有批注");
+      new Notice(t("这个 PDF 还没有批注", "This PDF has no annotations yet"));
       return;
     }
     const md = buildMarkdown(this.file, annots, this.pdfDoc ? this.file.basename : "");
-    const base = this.file.path.replace(/\.pdf$/i, "") + "（批注）";
+    const base = this.file.path.replace(/\.pdf$/i, "") + t("（批注）", " (annotations)");
     let target = base + ".md";
     let i = 2;
     while (this.app.vault.getAbstractFileByPath(target)) {
@@ -2664,7 +2704,7 @@ export class PDFView extends ItemView {
       i++;
     }
     const f = await this.app.vault.create(target, md);
-    new Notice("已生成批注笔记：" + f.path);
+    new Notice(t("已生成批注笔记：", "Annotation note created: ") + f.path);
     await this.app.workspace.getLeaf(true).openFile(f);
   }
 
@@ -2672,23 +2712,23 @@ export class PDFView extends ItemView {
     if (!this.file || !this.pdfBytes) return;
     const annots = this.store.annotsOf(this.file.path);
     if (!annots.length) {
-      new Notice("没有可烧入的批注");
+      new Notice(t("没有可烧入的批注", "Nothing to burn"));
       return;
     }
     const ok = await ConfirmModal.open(
       this.app,
-      `将 ${annots.length} 条批注写入 PDF？`,
-      "批注会被合并进页面内容，任何阅读器都能看到，但之后无法再单独编辑。原文件会先备份到插件目录。"
+      tf("将 {0} 条批注写入 PDF？", "Burn {0} annotations into the PDF?", annots.length),
+      t("批注会被合并进页面内容，任何阅读器都能看到，但之后无法再单独编辑。原文件会先备份到插件目录。", "Annotations become part of the page, so every reader shows them — but they can no longer be edited separately. The original file is backed up into the plugin folder first.")
     );
     if (!ok) return;
-    this.showProgress("正在写入 PDF…");
+    this.showProgress(t("正在写入 PDF…", "Writing the PDF…"));
     try {
       const bytes = await burnAnnotations(this.pdfBytes, annots);
       await this.plugin.backupPdf(this.file, this.pdfBytes);
       await this.app.vault.modifyBinary(this.file, bytes as any);
       this.showProgress("");
-      new Notice("已烧入 PDF（原文件已备份）");
-      const clear = await ConfirmModal.open(this.app, "清除插件内批注数据？", "批注已经写进 PDF，再保留一份会在阅读时重复显示。建议清除。");
+      new Notice(t("已烧入 PDF（原文件已备份）", "Annotations burned in (original backed up)"));
+      const clear = await ConfirmModal.open(this.app, t("清除插件内批注数据？", "Clear the plugin's copy of these annotations?"), t("批注已经写进 PDF，再保留一份会在阅读时重复显示。建议清除。", "They are now part of the PDF; keeping a copy would show them twice, so clearing is recommended."));
       if (clear) {
         this.pushUndo();
         this.store.replaceAnnots(this.file.path, []);
@@ -2698,7 +2738,7 @@ export class PDFView extends ItemView {
       await this.loadPdf();
     } catch (e: any) {
       this.showProgress("");
-      new Notice("写入失败：" + (e && e.message ? e.message : e));
+      new Notice(t("写入失败：", "Write failed: ") + (e && e.message ? e.message : e));
       console.error(e);
     }
   }
@@ -2720,7 +2760,11 @@ export class PDFView extends ItemView {
     if (!this.file) return;
     const n = this.store.annotsOf(this.file.path).length;
     if (!n) return;
-    const ok = await ConfirmModal.open(this.app, `清除全部 ${n} 条批注？`, "此操作可以用撤销恢复。");
+    const ok = await ConfirmModal.open(
+      this.app,
+      tf("清除全部 {0} 条批注？", "Clear all {0} annotations?", n),
+      t("此操作可以用撤销恢复。", "You can undo this.")
+    );
     if (!ok) return;
     this.pushUndo();
     this.store.replaceAnnots(this.file.path, []);

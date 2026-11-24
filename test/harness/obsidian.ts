@@ -174,6 +174,36 @@ export class Setting {
     cb(toggle);
     return this;
   }
+  addDropdown(cb: (d: any) => void) {
+    const sel = document.createElement("select");
+    const handlers: Array<(v: string) => void> = [];
+    const dd = {
+      addOption(value: string, label: string) {
+        const o = document.createElement("option");
+        o.value = value;
+        o.textContent = label;
+        sel.appendChild(o);
+        return dd;
+      },
+      addOptions(map: Record<string, string>) {
+        for (const [v, l] of Object.entries(map)) dd.addOption(v, l);
+        return dd;
+      },
+      setValue(v: string) {
+        sel.value = v;
+        return dd;
+      },
+      getValue: () => sel.value,
+      onChange(fn: (v: string) => void) {
+        handlers.push(fn);
+        return dd;
+      },
+    };
+    sel.addEventListener("change", () => handlers.forEach((fn) => fn(sel.value)));
+    this.controlEl.appendChild(sel);
+    cb(dd);
+    return this;
+  }
   addButton(cb: (b: any) => void) {
     const el = document.createElement("button");
     let onClick: (() => void) | null = null;

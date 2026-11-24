@@ -878,6 +878,92 @@ async function main() {
   });
   console.log("   state:", JSON.stringify(sum));
 
+  // ---------- 14. language switch ----------
+  const en = await page.evaluate(() => {
+    window.setLang("en");
+    const rail = Array.from(document.querySelectorAll(".pdfann-tool-label")).map((e) => e.textContent);
+    const opts = document.querySelector(".pdfann-opts-label")?.textContent || "";
+    const tabs = Array.from(document.querySelectorAll(".pdfann-tab")).map((e) => e.textContent);
+    const empty = document.querySelector(".pdfann-empty-state")?.textContent || "";
+    return { rail, opts, tabs, empty };
+  });
+  report(
+    "切到英文：工具栏、选项栏、侧栏标签都是英文",
+    en.rail.includes("Select") && en.rail.includes("Pen") && en.rail.includes("Text") &&
+      en.rail.includes("Undo") && en.tabs.includes("Notes") && en.tabs.includes("Outline") &&
+      /Select/.test(en.opts),
+    JSON.stringify(en)
+  );
+
+  const enSettings = await page.evaluate(() => {
+    const tab = window.openSettings();
+    const rows = Array.from(tab.containerEl.querySelectorAll(".setting-item"));
+    return {
+      names: rows.map((r) => r.querySelector(".setting-item-name")?.textContent || "").filter(Boolean),
+      options: Array.from(tab.containerEl.querySelectorAll("select option")).map((o) => o.textContent),
+      headings: Array.from(tab.containerEl.querySelectorAll(".setting-item-heading .setting-item-name")).map((e) => e.textContent),
+    };
+  });
+  report(
+    "英文设置页：分组、开关与语言下拉都是英文",
+    enSettings.names.includes("Interface language") &&
+      enSettings.names.includes("Drag ink when the pen presses on it") &&
+      enSettings.options.includes("Follow system") &&
+      enSettings.options.includes("中文") &&
+      enSettings.headings.includes("Language"),
+    JSON.stringify(enSettings)
+  );
+
+  const enMd = await page.evaluate(() => {
+    const v = window.view;
+    const annots = v.store.annotsOf(v.file.path, 1);
+    return window.__buildMarkdown(v.file, annots, "").split("\n").slice(0, 24);
+  });
+  report(
+    "英文导出的 Markdown 用英文标签",
+    enMd.some((l) => /annotations/.test(l)) && enMd.some((l) => /^(# |## )/.test(l)),
+    JSON.stringify(enMd.slice(0, 8))
+  );
+
+  const backZh = await page.evaluate(() => {
+    window.setLang("zh");
+    const rail = Array.from(document.querySelectorAll(".pdfann-tool-label")).map((e) => e.textContent);
+    return { rail, tabs: Array.from(document.querySelectorAll(".pdfann-tab")).map((e) => e.textContent) };
+  });
+  report(
+    "切回中文立即恢复",
+    backZh.rail.includes("画笔") && backZh.rail.includes("文字") && backZh.tabs.includes("批注"),
+    JSON.stringify(backZh)
+  );
+
+  const auto = await page.evaluate(() => {
+    const keep = localStorage.getItem("language");
+    const probe = (v) => {
+      if (v === null) localStorage.removeItem("language");
+      else localStorage.setItem("language", v);
+      return window.__resolveLang("auto");
+    };
+    const out = {
+      zhCN: probe("zh"),
+      zhTW: probe("zh-TW"),
+      en: probe("en"),
+    };
+    if (keep === null) localStorage.removeItem("language");
+    else localStorage.setItem("language", keep);
+    // 明确的设置项永远压过系统语言
+    out.forcedEnWhileSystemZh = (localStorage.setItem("language", "zh"), window.__resolveLang("en"));
+    out.forcedZhWhileSystemEn = (localStorage.setItem("language", "en"), window.__resolveLang("zh"));
+    if (keep === null) localStorage.removeItem("language");
+    else localStorage.setItem("language", keep);
+    return out;
+  });
+  report(
+    "语言「跟随系统」能识别中英文，手动选择优先",
+    auto.zhCN === "zh" && auto.zhTW === "zh" && auto.en === "en" &&
+      auto.forcedEnWhileSystemZh === "en" && auto.forcedZhWhileSystemEn === "zh",
+    JSON.stringify(auto)
+  );
+
   await page.screenshot({ path: "test/shot-final.png" });
   await page.evaluate(() => window.view.flushSave());
   await browser.close();

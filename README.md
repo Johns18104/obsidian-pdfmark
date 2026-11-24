@@ -30,6 +30,7 @@ PDFmark 是一个 Obsidian 插件：直接在库里读 PDF，随手划线、写�
 | **Export** | Turn annotations into a Markdown note with quotes, colours and page links (`[[file.pdf#page=12]]`). 一键导出 Markdown 笔记，带原文引用与页码双链。 |
 | **Burn-in** | Write the annotations into the PDF itself, so any reader sees them. The original file is backed up first. 把批注烧进 PDF，任何阅读器都能看到，原文件自动备份。 |
 | **Extras** | Night inversion, crop white margins, zoom / fit-width, undo & redo (50 steps), per-file annotation store. 夜间反色、裁白边、缩放适宽、50 步撤销重做。 |
+| **Two languages** | The whole interface — tool rail, menus, dialogs, settings, exported notes — is available in English and Chinese, switchable in the settings; the default follows your Obsidian language. 界面支持中英文，可在设置里切换，默认跟随 Obsidian 的语言。 |
 
 ---
 
@@ -64,6 +65,12 @@ PDFmark does **not** take over `.pdf` by default. Open a PDF with it through the
 Shortcuts: `Ctrl/Cmd+Z` undo, `Ctrl/Cmd+Shift+Z` redo, `Esc` close the floating menu.
 
 ---
+
+## Language
+
+The interface is fully translated into English and Chinese. **Settings → PDFmark → Language → Interface language** offers *Follow system* (default), *中文* and *English*; *Follow system* uses your Obsidian UI language, falling back to the system locale.
+
+Switching applies immediately to the settings page and to every open PDF — tool rail, menus, dialogs, the sidebar and the empty states. Two things are registered with Obsidian once at load time and therefore update after a restart: the command palette entries and the ribbon tooltip. Exported Markdown follows the same setting (headings, type labels and page links are written in the active language), so the same vault can hold notes in either language depending on when they were exported.
 
 ## How burning handles text and fonts
 
@@ -182,6 +189,12 @@ The build inlines every runtime asset into `main.js`, because the community inst
 8. **更多（⋯）**：导出 Markdown、复制当前页引用、烧入 PDF、清除批注。
 
 **移动标注不用切换工具**：当前是什么工具，就按住同类标注直接拖——便签工具拖便签、方框工具拖方框。只有手写笔迹需要你自己定规矩：按在笔迹边上起笔，通常是想接着写，所以画笔 / 荧光笔默认**继续起笔**；想让它们按住已有笔迹就拖动，去设置里打开「画笔按住已有笔迹时拖动它」，而「选中」工具任何时候都能拖。用图形工具时只有**边框**能命中，框内仍然可以继续画新的框；用「选中」时任何能移动的东西（包括手写）都能拖，空白处拖动仍然是划词。高亮 / 下划线 / 删除线是唯一不参与拖动的类型——它们绑在所标的文字上。鼠标移到能拖的位置会变成四向箭头。
+
+### 界面语言
+
+界面完整支持中英文：**设置 → PDFmark → 语言 → 界面语言**，可选「跟随系统」（默认）、「中文」、「English」。「跟随系统」读的是 Obsidian 的界面语言，取不到时用系统语言。
+
+切换后立即生效的范围：设置页本身、所有已打开的 PDF（工具条、菜单、弹窗、侧栏、空状态文案）。有两处是 Obsidian 在插件加载时注册一次的，需要重启才跟着变：命令面板里的命令名、侧栏图标的提示文字。导出的 Markdown 也跟着当前语言走（标题、类型标签、页码链接都用当前语言），所以同一个库里可能同时存在中英文两种导出的笔记。
 
 ### 数据在哪
 

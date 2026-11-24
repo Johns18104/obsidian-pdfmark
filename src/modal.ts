@@ -1,4 +1,5 @@
 import { App, Modal } from "obsidian";
+import { t } from "./i18n";
 
 export class TextInputModal extends Modal {
   private done = false;
@@ -24,8 +25,8 @@ export class TextInputModal extends Modal {
     const ta = contentEl.createEl("textarea", { cls: "pdfann-modal-input" });
     ta.value = this.initial;
     const row = contentEl.createDiv("pdfann-modal-row");
-    const cancel = row.createEl("button", { text: "取消" });
-    const ok = row.createEl("button", { text: "确定", cls: "mod-cta" });
+    const cancel = row.createEl("button", { text: t("取消", "Cancel") });
+    const ok = row.createEl("button", { text: t("确定", "OK"), cls: "mod-cta" });
     cancel.onclick = () => this.close();
     ok.onclick = () => {
       this.done = true;
@@ -73,8 +74,8 @@ export class ConfirmModal extends Modal {
     contentEl.createEl("h4", { text: this.heading });
     if (this.detail) contentEl.createEl("p", { text: this.detail, cls: "pdfann-modal-desc" });
     const row = contentEl.createDiv("pdfann-modal-row");
-    const cancel = row.createEl("button", { text: "取消" });
-    const ok = row.createEl("button", { text: "确定", cls: "mod-cta" });
+    const cancel = row.createEl("button", { text: t("取消", "Cancel") });
+    const ok = row.createEl("button", { text: t("确定", "OK"), cls: "mod-cta" });
     cancel.onclick = () => this.close();
     ok.onclick = () => {
       this.done = true;

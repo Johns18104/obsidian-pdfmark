@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 — English interface, language switch
+
+- The entire interface can now be shown in English: tool rail, options bar, menus, dialogs, sidebar, empty states, notices, settings page and exported Markdown.
+- **Settings → PDFmark → Language → Interface language** offers *Follow system* (default), *中文* and *English*. *Follow system* uses the Obsidian UI language, then the system locale.
+- Switching is applied live to the settings page and to open PDFs (`refreshLanguage()` rebuilds the rail, bar, options and sidebar without losing the page). Command palette entries and the ribbon tooltip are registered at load, so they change after a restart.
+- Translated strings live next to the code as `t("中文", "English")`, with `tf()` for interpolation; the tool table keeps both labels so nothing is frozen at module load.
+- Exported Markdown, its YAML tags (`pdf-annotations`) and page links follow the active language.
+- Settings row order: Language first, then how PDFs open, reading, data.
+- Regression suite: 38 assertions, including English rail labels, an English settings page and an English export.
+
 ## 1.0.3 — ink: keep drawing or grab the stroke?
 
 Set by a new switch, **Drag ink when the pen presses on it**, in the plugin settings.
