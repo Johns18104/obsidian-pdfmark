@@ -40,7 +40,7 @@ const WORKER_URL = (() => {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return URL.createObjectURL(new Blob([bytes], { type: "text/javascript" }));
   } catch (e) {
-    console.error("[pdf-annotator] worker init failed", e);
+    console.error("[pdfmark] worker init failed", e);
     return "";
   }
 })();
@@ -84,7 +84,7 @@ function configureWorker(plugin: any) {
     (pdfjsLib.GlobalWorkerOptions as any).workerPort = new Worker(WORKER_URL);
     return;
   } catch (e) {
-    console.warn("[pdf-annotator] blob worker failed, trying file worker", e);
+    console.warn("[pdfmark] blob worker failed, trying file worker", e);
   }
   let fileUrl = "";
   try {
@@ -643,7 +643,7 @@ export class PDFView extends ItemView {
       this.paintPage(pe);
     } catch (e: any) {
       if (e && e.name === "RenderingCancelledException") return;
-      console.error("[pdf-annotator] render failed page", pe.num, e);
+      console.error("[pdfmark] render failed page", pe.num, e);
     } finally {
       pe.rendering = false;
       pe.task = null;

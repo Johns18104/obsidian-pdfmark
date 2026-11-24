@@ -38,7 +38,7 @@ export default class PdfAnnotatorPlugin extends Plugin {
       try {
         this.registerExtensions(["pdf"], VIEW_TYPE_PDF);
       } catch (e) {
-        console.error("[pdf-annotator] take over failed", e);
+        console.error("[pdfmark] take over failed", e);
       }
     }
 
@@ -124,7 +124,7 @@ export default class PdfAnnotatorPlugin extends Plugin {
       const buf: any = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
       await adapter.writeBinary(`${dir}/${file.basename}-${stamp}.pdf`, buf);
     } catch (e) {
-      console.warn("[pdf-annotator] backup failed", e);
+      console.warn("[pdfmark] backup failed", e);
     }
   }
 
