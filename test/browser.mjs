@@ -769,6 +769,56 @@ async function main() {
     JSON.stringify(burnArrow)
   );
 
+  // ---------- 3.8 underline / strike rule thickness ----------
+  const rules = await page.evaluate(() => {
+    const v = window.view;
+    v.setTool("select");
+    v.selectedId = null;
+    const rect = { x: 80, y: 300, w: 200, h: 13 };
+    const put = (id, type) => {
+      v.store.remove(v.file.path, id);
+      v.store.add(v.file.path, {
+        id,
+        page: 1,
+        type,
+        color: "#e8537a",
+        rects: [rect],
+        text: "rule probe",
+        created: 1,
+        updated: 1,
+      });
+    };
+    const read = (id) => {
+      v.paintPage(v.pages[0]);
+      const line = Array.from(v.pages[0].svg.querySelectorAll('line[stroke="#e8537a"]')).pop();
+      const sr = v.screenRect(v.pages[0], rect);
+      return {
+        w: Number(line.getAttribute("stroke-width")),
+        y: Number(line.getAttribute("y1")),
+        cap: line.getAttribute("stroke-linecap"),
+        bottom: sr.y + sr.h,
+        middle: sr.y + sr.h / 2,
+        scale: v.scale,
+      };
+    };
+    put("rule-u", "underline");
+    const u = read("rule-u");
+    put("rule-s", "strike");
+    const s = read("rule-s");
+    for (const id of ["rule-u", "rule-s"]) v.store.remove(v.file.path, id);
+    v.paintPage(v.pages[0]);
+    return { u, s };
+  });
+  report(
+    "下划线/删除线加粗到 2.5 pt，且贴在文字框底边（删除线居中）",
+    Math.abs(rules.u.w - 2.5 * rules.u.scale) < 0.05 &&
+      Math.abs(rules.s.w - 2.5 * rules.s.scale) < 0.05 &&
+      Math.abs(rules.u.y - rules.u.bottom) < 0.5 &&
+      Math.abs(rules.s.y - rules.s.middle) < 0.5 &&
+      rules.u.cap === "butt",
+    JSON.stringify(rules)
+  );
+
   // An old annotation wider than today's limit still renders, it is just
   // clamped the next time the user touches the slider.
   const legacy = await page.evaluate(() => {

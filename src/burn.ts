@@ -1,5 +1,14 @@
 import { PDFDocument, rgb, LineCapStyle, BlendMode } from "pdf-lib";
-import { Annot, InkAnnot, NoteAnnot, ShapeAnnot, TextBoxAnnot, TextMark, hexToRgb01 } from "./types";
+import {
+  Annot,
+  InkAnnot,
+  NoteAnnot,
+  ShapeAnnot,
+  TEXT_RULE_WIDTH,
+  TextBoxAnnot,
+  TextMark,
+  hexToRgb01,
+} from "./types";
 import { textToPng } from "./richtext";
 import { arrowHead } from "./arrow";
 
@@ -37,13 +46,14 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
     } else if (a.type === "underline" || a.type === "strike") {
       const m = a as TextMark;
       for (const r of m.rects) {
-        const y = m.type === "underline" ? r.y + Math.max(0.8, r.h * 0.12) : r.y + r.h / 2;
+        // Underline rides the bottom edge of the text box; the strike splits it.
+        const y = m.type === "underline" ? r.y : r.y + r.h / 2;
         page.drawLine({
           start: { x: r.x, y },
           end: { x: r.x + r.w, y },
-          thickness: Math.max(0.8, r.h * 0.09),
+          thickness: TEXT_RULE_WIDTH,
           color: c(m.color),
-          lineCap: LineCapStyle.Round,
+          lineCap: LineCapStyle.Butt,
         });
       }
     } else if (a.type === "ink") {

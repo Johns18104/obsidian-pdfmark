@@ -148,6 +148,12 @@ export const MAX_SHAPE_WIDTH = 13;
 export const MIN_FONT_SIZE = 6;
 export const MAX_FONT_SIZE = 30;
 export const MAX_PEN_WIDTH = 30;
+/**
+ * Thickness of the underline and strikethrough rules, in PDF points. The rules
+ * used to be ~1.3 pt, which looked like a hairline next to the glyphs; both the
+ * screen layer and the burned PDF now use this value.
+ */
+export const TEXT_RULE_WIDTH = 2.5;
 
 export const PALETTE = [
   "#f2c200",

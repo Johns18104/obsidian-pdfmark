@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.2 — thicker underline and strikethrough
+
+- Underline and strikethrough rules are now **2.5 pt** (they were ~1.3 pt on screen and ~1.2 pt once burned in, which read as a hairline next to 12 pt text). The value lives in one constant, `TEXT_RULE_WIDTH`, so the screen and the burned PDF can no longer drift apart.
+- The underline now rides the bottom edge of the text box instead of a pixel offset that did not match the burned output; the strikethrough stays through the middle.
+- Both rules use a butt cap, so a long rule no longer grows a rounded tip at either end.
+- Regression suite: 44 assertions, including the measured rule width (2.5 × zoom on screen, 2.5 pt in the burned PDF) and its anchor point.
+
 ## 1.1.1 — arrow heads that survive zooming
 
 - **Fixed: the arrow looked broken once zoomed in.** The shaft was drawn all the way to the tip with a round cap, so the cap stuck out in front of the point — barely visible at 100%, an obvious rounded nub at 300%. The shaft now stops inside the base of the head and uses a flat cap, and the head is a filled triangle whose size comes from the stroke width in PDF units, so it scales with the page instead of being pinned to a pixel value. Screen rendering and the burned-in PDF share one geometry function (`src/arrow.ts`), so what you see is what gets written.

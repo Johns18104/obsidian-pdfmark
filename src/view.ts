@@ -16,6 +16,7 @@ import {
   PluginSettings,
   Pt,
   ShapeAnnot,
+  TEXT_RULE_WIDTH,
   TextBoxAnnot,
   TextMark,
   VIEW_TYPE_PDF,
@@ -922,7 +923,11 @@ export class PDFView extends ItemView {
             })
           );
         } else {
-          const y = mark.type === "underline" ? sr.y + sr.h - Math.max(1, 1.2 * s) / 2 : sr.y + sr.h / 2;
+          // Sit the rule on the bottom edge of the text box (half above, half
+          // below), so a thicker rule grows downward instead of eating into the
+          // glyphs. Anchoring on the box, not on a pixel offset, also keeps the
+          // screen and the burned PDF identical.
+          const y = mark.type === "underline" ? sr.y + sr.h : sr.y + sr.h / 2;
           g.appendChild(
             this.svgEl("line", {
               x1: sr.x,
@@ -930,8 +935,8 @@ export class PDFView extends ItemView {
               x2: sr.x + sr.w,
               y2: y,
               stroke: mark.color,
-              "stroke-width": Math.max(1, 1.3 * s),
-              "stroke-linecap": "round",
+              "stroke-width": Math.max(1, TEXT_RULE_WIDTH * s),
+              "stroke-linecap": "butt",
             })
           );
         }
