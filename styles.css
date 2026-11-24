@@ -236,9 +236,16 @@
 .pdfann-svg .pdfann-hit,
 .pdfann-svg .pdfann-note-mark {
   pointer-events: auto;
+  cursor: move;
 }
 .pdfann-svg .pdfann-textcard {
   cursor: move;
+}
+/* Eraser: nothing is draggable while it is armed, so do not advertise a move. */
+.pdfann-pages.pdfann-erase-active .pdfann-svg .pdfann-hit,
+.pdfann-pages.pdfann-erase-active .pdfann-svg .pdfann-textcard,
+.pdfann-pages.pdfann-erase-active .pdfann-svg .pdfann-note-mark {
+  cursor: crosshair;
 }
 .pdfann-svg .pdfann-textcard text {
   pointer-events: none;
@@ -246,6 +253,13 @@
 }
 .pdfann-pages.pdfann-draw-active .pdfann-draw {
   cursor: crosshair;
+  touch-action: none;
+}
+/* With a tool armed the annotation cards are draggable with a finger too. */
+.pdfann-pages.pdfann-draw-active .pdfann-svg .pdfann-hit,
+.pdfann-pages.pdfann-draw-active .pdfann-svg .pdfann-textcard,
+.pdfann-pages.pdfann-sel-lock .pdfann-svg .pdfann-hit,
+.pdfann-pages.pdfann-sel-lock .pdfann-svg .pdfann-textcard {
   touch-action: none;
 }
 .pdfann-pages.pdfann-sel-lock .pdfann-draw {

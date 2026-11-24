@@ -9,6 +9,7 @@ import {
   PALETTE,
   PRect,
   PluginSettings,
+  Pt,
   ShapeAnnot,
   TextBoxAnnot,
   TextMark,
@@ -126,7 +127,7 @@ interface PageEl {
 }
 
 const TOOLS: { id: Tool; icon: string; label: string; tag: string }[] = [
-  { id: "select", icon: "mouse-pointer", label: "选择 / 选字", tag: "选字" },
+  { id: "select", icon: "mouse-pointer", label: "选中 / 划词", tag: "选中" },
   { id: "pen", icon: "pencil", label: "画笔", tag: "画笔" },
   { id: "highlighter", icon: "highlighter", label: "荧光笔", tag: "荧光" },
   { id: "eraser", icon: "eraser", label: "橡皮（整笔擦除）", tag: "橡皮" },
@@ -981,12 +982,15 @@ export class PDFView extends ItemView {
       const gg = this.svgEl("g", { class: "pdfann-hit" });
       gg.appendChild(card);
       gg.addEventListener("pointerdown", (ev: PointerEvent) => {
-        if (this.tool !== "select") return;
+        if (!this.canGrab(a)) return;
         ev.stopPropagation();
         this.onTextDown(pe, a as any, ev);
       });
       gg.addEventListener("dblclick", (ev: MouseEvent) => {
         ev.stopPropagation();
+        // The eraser removes on the first press; do not reopen a dead card.
+        if (this.tool === "eraser") return;
+        if (!this.store.annotsOf(this.file!.path, pe.num).some((x) => x.id === a.id)) return;
         if (isNote) this.editNote(a as NoteAnnot);
         else this.editTextBox(a as TextBoxAnnot);
       });
@@ -1059,7 +1063,15 @@ export class PDFView extends ItemView {
       class: "pdfann-hit",
     } as any);
     hit.addEventListener("pointerdown", (ev: PointerEvent) => {
-      if (this.tool !== "select") return;
+      if (!this.canGrab(sh)) return;
+      // With a drawing tool armed, only the outline counts: otherwise a new box
+      // could never be drawn inside an existing one.
+      if (
+        this.tool !== "select" &&
+        !this.hitsPoint(sh, this.toPdf(pe, ev.clientX, ev.clientY), this.hitTol(6), true)
+      ) {
+        return;
+      }
       ev.stopPropagation();
       this.onShapeDown(pe, sh, ev, "move");
     });
@@ -1124,7 +1136,7 @@ export class PDFView extends ItemView {
   setTool(t: Tool) {
     if (t === "select" && this.tool === "select") {
       this.selectLock = !this.selectLock;
-      new Notice(this.selectLock ? "已锁定选字：拖动即可划选文字" : "已解锁：在触屏上拖动为滚动页面");
+      new Notice(this.selectLock ? "已锁定选中：拖动即可划选文字" : "已解锁：在触屏上拖动为滚动页面");
     }
     this.tool = t;
     this.selectedId = null;
@@ -1136,6 +1148,7 @@ export class PDFView extends ItemView {
     const lockBtn = this.railEl.querySelector('.pdfann-tool[data-tool="select"]');
     if (lockBtn) lockBtn.toggleClass("is-on", this.selectLock);
     this.pagesEl.toggleClass("pdfann-draw-active", t !== "select");
+    this.pagesEl.toggleClass("pdfann-erase-active", t === "eraser");
     this.pagesEl.toggleClass("pdfann-sel-lock", this.selectLock);
     this.updateOptions();
     for (const pe of this.pages) if (pe.viewport) this.paintPage(pe);
@@ -1300,7 +1313,15 @@ export class PDFView extends ItemView {
   // ---------------------------------------------------------------- pointer
 
   private attachPageEvents(pe: PageEl) {
-    pe.draw.addEventListener("pointerdown", (ev: PointerEvent) => this.onPointerDown(pe, ev));
+    // Listen on the wrapper, not on the draw layer: the SVG hit targets are
+    // siblings of the draw layer, so a press on an annotation would otherwise
+    // never reach the page-level dispatcher.
+    pe.inner.addEventListener("pointerdown", (ev: PointerEvent) => this.onPointerDown(pe, ev));
+  }
+
+  /** Can the current tool pick this annotation up and drag it? */
+  private canGrab(a: Annot): boolean {
+    return this.tool === "select" || this.toolMatches(this.tool, a);
   }
 
   private onPointerDown(pe: PageEl, ev: PointerEvent) {
@@ -1312,8 +1333,32 @@ export class PDFView extends ItemView {
     this.removePopup();
     this.clearSelectionPreview();
     const tool = this.tool;
+    if (tool === "eraser") {
+      this.startErase(pe, ev);
+      return;
+    }
+
+    const at = this.toPdf(pe, ev.clientX, ev.clientY);
+
     if (tool === "select") {
       if (ev.pointerType === "touch" && !this.selectLock) return;
+      // Shapes, notes and text boxes carry their own DOM hit targets, but ink
+      // is painted on a canvas — and a note's pin is just a marker — so they
+      // have to be hit-tested here. Text marks are excluded on purpose: dragging
+      // a highlight would tear it away from the words it belongs to.
+      const grabbed = this.hitAnnotAt(pe, at, this.hitTol(4), {
+        filter: (a) => a.type !== "highlight" && a.type !== "underline" && a.type !== "strike",
+      });
+      if (grabbed) {
+        if (grabbed.type === "note" || grabbed.type === "textbox") {
+          this.onTextDown(pe, grabbed as NoteAnnot | TextBoxAnnot, ev);
+        } else if (grabbed.type === "ink") {
+          this.startTranslate(pe, grabbed, ev);
+        } else {
+          this.onShapeDown(pe, grabbed as ShapeAnnot, ev, "move");
+        }
+        return;
+      }
       if (this.selectedId) {
         this.selectedId = null;
         this.updateOptions();
@@ -1322,6 +1367,25 @@ export class PDFView extends ItemView {
       this.startSelect(pe, ev);
       return;
     }
+
+    // While a tool is active, pressing an existing annotation of that same kind
+    // grabs it — drag moves it, a plain click still opens its editor — instead
+    // of stacking a duplicate on top. Empty space keeps the tool's usual job.
+    const grabbed = this.hitAnnotAt(pe, at, this.hitTol(this.grabTolerance(tool)), {
+      outline: tool === "line" || tool === "arrow" || tool === "rect" || tool === "ellipse",
+      filter: (a) => this.toolMatches(tool, a),
+    });
+    if (grabbed) {
+      if (grabbed.type === "note" || grabbed.type === "textbox") {
+        this.onTextDown(pe, grabbed as NoteAnnot | TextBoxAnnot, ev);
+      } else if (grabbed.type === "ink") {
+        this.startTranslate(pe, grabbed, ev);
+      } else {
+        this.onShapeDown(pe, grabbed as ShapeAnnot, ev, "move");
+      }
+      return;
+    }
+
     if (tool === "note") {
       this.createNote(pe, ev);
       return;
@@ -1330,15 +1394,150 @@ export class PDFView extends ItemView {
       this.createTextBox(pe, ev);
       return;
     }
-    if (tool === "eraser") {
-      this.startErase(pe, ev);
-      return;
-    }
     if (tool === "pen" || tool === "highlighter") {
       this.startInk(pe, ev);
       return;
     }
     this.startShape(pe, ev, tool);
+  }
+
+  /** Which annotation kind each tool creates — only that kind can be grabbed. */
+  private toolMatches(tool: Tool, a: Annot): boolean {
+    switch (tool) {
+      case "pen":
+      case "highlighter":
+        return a.type === "ink";
+      case "note":
+        return a.type === "note";
+      case "textbox":
+        return a.type === "textbox";
+      case "line":
+      case "rect":
+      case "ellipse":
+      case "arrow":
+        return a.type === tool;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * How far from an annotation still counts as "on it", in CSS px. Ink uses a
+   * tight radius so a stroke that merely starts near another stroke keeps
+   * drawing instead of hijacking it.
+   */
+  private grabTolerance(tool: Tool): number {
+    if (tool === "pen" || tool === "highlighter") return 4;
+    if (tool === "note" || tool === "textbox") return 3;
+    return 6;
+  }
+
+  private hitTol(px: number): number {
+    return px / Math.max(0.2, this.scale);
+  }
+
+  /** Topmost annotation under a page-space point, newest first. */
+  private hitAnnotAt(
+    pe: PageEl,
+    p: Pt,
+    tol: number,
+    opts: { outline?: boolean; filter?: (a: Annot) => boolean } = {}
+  ): Annot | null {
+    if (!this.file) return null;
+    const list = this.store.annotsOf(this.file.path, pe.num);
+    for (let i = list.length - 1; i >= 0; i--) {
+      const a = list[i];
+      if (opts.filter && !opts.filter(a)) continue;
+      if (this.hitsPoint(a, p, tol, !!opts.outline)) return a;
+    }
+    return null;
+  }
+
+  private hitsPoint(a: Annot, p: Pt, tol: number, outline: boolean): boolean {
+    switch (a.type) {
+      case "ink": {
+        const ink = a as InkAnnot;
+        const w = Math.max(tol, (ink.width || 2) / 2);
+        return ink.strokes.some((s) => {
+          if (s.length === 1) return Math.hypot(s[0].x - p.x, s[0].y - p.y) < w;
+          for (let i = 1; i < s.length; i++) if (distToSegment(p, s[i - 1], s[i]) < w) return true;
+          return false;
+        });
+      }
+      case "line":
+      case "arrow": {
+        const sh = a as ShapeAnnot;
+        return distToSegment(p, sh.p0, sh.p1) < Math.max(tol, sh.width || 1) * 1.4;
+      }
+      case "rect":
+      case "ellipse": {
+        const sh = a as ShapeAnnot;
+        const bb = rectFromPoints(sh.p0, sh.p1);
+        if (!outline) {
+          return (
+            p.x >= bb.x - tol && p.x <= bb.x + bb.w + tol && p.y >= bb.y - tol && p.y <= bb.y + bb.h + tol
+          );
+        }
+        const t = Math.max(tol, (sh.width || 1) * 1.5);
+        if (p.x < bb.x - t || p.x > bb.x + bb.w + t || p.y < bb.y - t || p.y > bb.y + bb.h + t) return false;
+        if (
+          Math.abs(p.x - bb.x) < t ||
+          Math.abs(p.x - (bb.x + bb.w)) < t ||
+          Math.abs(p.y - bb.y) < t ||
+          Math.abs(p.y - (bb.y + bb.h)) < t
+        ) {
+          return true;
+        }
+        if (a.type === "rect") return false;
+        // Ellipse: distance to the curve itself, not to its bounding box.
+        const rx = Math.max(0.5, bb.w / 2);
+        const ry = Math.max(0.5, bb.h / 2);
+        const v = ((p.x - (bb.x + rx)) / rx) ** 2 + ((p.y - (bb.y + ry)) / ry) ** 2;
+        return Math.abs(Math.sqrt(v) - 1) * Math.min(rx, ry) < t;
+      }
+      case "note": {
+        const b = this.noteBox(a as NoteAnnot);
+        return p.x >= b.x - tol && p.x <= b.x + b.w + tol && p.y >= b.y - tol && p.y <= b.y + b.h + tol;
+      }
+      case "textbox": {
+        const b = this.textBoxBox(a as TextBoxAnnot);
+        return p.x >= b.x - tol && p.x <= b.x + b.w + tol && p.y >= b.y - tol && p.y <= b.y + b.h + tol;
+      }
+      default: {
+        const m = a as TextMark;
+        return m.rects.some(
+          (r) => p.x >= r.x - tol && p.x <= r.x + r.w + tol && p.y >= r.y - tol && p.y <= r.y + r.h + tol
+        );
+      }
+    }
+  }
+
+  /** Marker pin plus its text card, in PDF user space. */
+  private noteBox(n: NoteAnnot): PRect {
+    const k = 1 / Math.max(0.2, this.scale);
+    const pin = 16 * k;
+    const text = layoutText(n.text || "", 11, 210);
+    const pad = 11 * 0.35;
+    return {
+      x: n.pt.x - 2 * k,
+      y: n.pt.y - pin + 2 * k - text.height - pad * 2,
+      w: pin + text.width + pad * 2,
+      h: pin + text.height + pad * 2,
+    };
+  }
+
+  /** Text box card, in PDF user space (`pt` is its top-left corner). */
+  private textBoxBox(t: TextBoxAnnot): PRect {
+    const size = Math.max(6, t.size || this.settings.textSize);
+    const wrap = Math.max(40, t.w || this.settings.textWidth);
+    const text = layoutText(t.text || "", size, wrap);
+    const pad = size * 0.35;
+    return {
+      x: t.pt.x,
+      y: t.pt.y - text.height - pad * 2,
+      w: text.width + pad * 2,
+      h: text.height + pad * 2,
+    };
   }
 
   /**
@@ -1693,40 +1892,9 @@ export class PDFView extends ItemView {
     const layer = pe.draw;
     let undoPushed = false;
 
-    const hitTest = (p: { x: number; y: number }): Annot[] => {
-      const tol = 10 / this.scale;
-      const hits: Annot[] = [];
-      for (const a of this.store.annotsOf(this.file!.path, pe.num)) {
-        if (a.type === "ink") {
-          const near = (a as InkAnnot).strokes.some((s) =>
-            s.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < tol)
-          );
-          if (near) hits.push(a);
-        } else if (a.type === "line" || a.type === "arrow") {
-          const sh = a as ShapeAnnot;
-          if (distToSegment(p, sh.p0, sh.p1) < tol * 1.4) hits.push(a);
-        } else if (a.type === "rect" || a.type === "ellipse") {
-          const sh = a as ShapeAnnot;
-          const bb = rectFromPoints(sh.p0, sh.p1);
-          if (p.x >= bb.x - tol && p.x <= bb.x + bb.w + tol && p.y >= bb.y - tol && p.y <= bb.y + bb.h + tol) {
-            hits.push(a);
-          }
-        } else if (a.type === "note") {
-          const n = a as NoteAnnot;
-          if (Math.hypot(n.pt.x - p.x, n.pt.y - p.y) < 28 / this.scale) hits.push(a);
-        } else if (a.type === "textbox") {
-          const t = a as TextBoxAnnot;
-          const box = layoutText(t.text, t.size, t.w);
-          const h = box.height;
-          if (p.x >= t.pt.x && p.x <= t.pt.x + t.w && p.y <= t.pt.y && p.y >= t.pt.y - h) hits.push(a);
-        } else {
-          const m = a as TextMark;
-          if (m.rects.some((r) => p.x >= r.x - tol && p.x <= r.x + r.w + tol && p.y >= r.y - tol && p.y <= r.y + r.h + tol)) {
-            hits.push(a);
-          }
-        }
-      }
-      return hits;
+    const hitTest = (p: Pt): Annot[] => {
+      const tol = this.hitTol(9);
+      return this.store.annotsOf(this.file!.path, pe.num).filter((a) => this.hitsPoint(a, p, tol, false));
     };
 
     const eraseAt = (e: PointerEvent) => {
@@ -1906,6 +2074,76 @@ export class PDFView extends ItemView {
     layer.addEventListener("pointermove", onMove);
     layer.addEventListener("pointerup", finish);
     layer.addEventListener("pointercancel", finish);
+  }
+
+  /**
+   * Drag a whole annotation. Shapes, notes and text boxes shift their anchor
+   * points; ink shifts every point of every stroke, so a scribble moves as one
+   * piece. A press without movement is not an edit, so no undo entry is made.
+   */
+  private startTranslate(pe: PageEl, a: Annot, ev: PointerEvent) {
+    ev.preventDefault();
+    const layer = pe.draw;
+    const start = this.toPdf(pe, ev.clientX, ev.clientY);
+    const before = this.snapshot();
+    const orig = this.cloneGeom(a);
+    let moved = false;
+    const onMove = (e: PointerEvent) => {
+      const p = this.toPdf(pe, e.clientX, e.clientY);
+      const dx = p.x - start.x;
+      const dy = p.y - start.y;
+      if (!moved && Math.hypot(dx, dy) * this.scale < 2) return;
+      moved = true;
+      this.translateFrom(a, orig, dx, dy);
+      a.updated = Date.now();
+      this.paintPage(pe, a.type !== "ink");
+    };
+    const finish = () => {
+      layer.removeEventListener("pointermove", onMove);
+      layer.removeEventListener("pointerup", finish);
+      layer.removeEventListener("pointercancel", finish);
+      try {
+        layer.releasePointerCapture(ev.pointerId);
+      } catch (err) {}
+      if (!moved) return;
+      this.pushSnapshot(before);
+      this.selectedId = a.id;
+      this.paintPage(pe);
+      this.updateOptions();
+      this.renderSidebar();
+      this.scheduleSave();
+    };
+    try {
+      layer.setPointerCapture(ev.pointerId);
+    } catch (err) {}
+    layer.addEventListener("pointermove", onMove);
+    layer.addEventListener("pointerup", finish);
+    layer.addEventListener("pointercancel", finish);
+  }
+
+  private cloneGeom(a: Annot): any {
+    if (a.type === "ink") {
+      return (a as InkAnnot).strokes.map((s) => s.map((q) => ({ x: q.x, y: q.y })));
+    }
+    if (a.type === "note" || a.type === "textbox") return { pt: { ...(a as NoteAnnot).pt } };
+    if (a.type === "line" || a.type === "rect" || a.type === "ellipse" || a.type === "arrow") {
+      const sh = a as ShapeAnnot;
+      return { p0: { ...sh.p0 }, p1: { ...sh.p1 } };
+    }
+    return null;
+  }
+
+  private translateFrom(a: Annot, orig: any, dx: number, dy: number) {
+    if (!orig) return;
+    if (a.type === "ink") {
+      (a as InkAnnot).strokes = orig.map((s: Pt[]) => s.map((q) => ({ x: q.x + dx, y: q.y + dy })));
+    } else if (a.type === "note" || a.type === "textbox") {
+      (a as NoteAnnot).pt = { x: orig.pt.x + dx, y: orig.pt.y + dy };
+    } else if (orig.p0) {
+      const sh = a as ShapeAnnot;
+      sh.p0 = { x: orig.p0.x + dx, y: orig.p0.y + dy };
+      sh.p1 = { x: orig.p1.x + dx, y: orig.p1.y + dy };
+    }
   }
 
   // ---------------------------------------------------------------- crops

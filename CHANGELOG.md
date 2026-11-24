@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1 — dragging without switching tools
+
+- Any annotation can now be moved while its own tool is still active: a note with the note tool, a text box with the text box tool, a box with the box tool, a pen stroke with the pen. Previously the drag cursor appeared but the press fell through and nothing moved.
+- Rectangle and ellipse only grab near their outline when a drawing tool is armed, so a new shape can still be drawn inside an existing one.
+- Ink can be moved in Select mode too; the whole stroke travels as one piece.
+- Dragging no longer creates a duplicate annotation on top of the one you grabbed, and each drag is a single undo step.
+- The cursor is a four-way arrow wherever a drag will actually work, and a crosshair under the eraser.
+- Renamed the first tool from 选字 to 选中.
+- Regression suite: 27 assertions, including grab-and-drag for every tool.
+
 ## 1.0.0 — first public release
 
 Initial release for the Obsidian community directory.

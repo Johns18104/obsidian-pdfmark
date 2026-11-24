@@ -538,6 +538,193 @@ async function main() {
   });
   report("烧入时便签/文字写成图文而非图标", burnInfo.images >= 2, JSON.stringify(burnInfo));
 
+  // ---------- 13. grab and drag while a creating tool is still armed ----------
+  await page.evaluate(() => {
+    const v = window.view;
+    v.goPage(1);
+    v.scrollEl.scrollTop = 0;
+  });
+  await new Promise((r) => setTimeout(r, 500));
+
+  const mid = await page.evaluate(() => {
+    const v = window.view, pe = v.pages[0];
+    const r = pe.inner.getBoundingClientRect();
+    const fx = (q) => (Array.isArray(q) ? q[0] : q.x);
+    const fy = (q) => (Array.isArray(q) ? q[1] : q.y);
+    window.__toScreen = (x, y) => {
+      const rr = pe.inner.getBoundingClientRect();
+      const p = pe.viewport.convertToViewportPoint(x, y);
+      return { x: rr.left + fx(p), y: rr.top + fy(p) };
+    };
+    const c = pe.viewport.convertToPdfPoint(r.width / 2, r.height / 2);
+    return { x: fx(c), y: fy(c), scale: v.scale };
+  });
+
+  const pointFor = async (pdfPt) => {
+    // Scroll the target into the visible strip first — at 2x zoom a page is
+    // 1700 px tall, and a pointer event outside the scroller simply does nothing.
+    await page.evaluate((q) => {
+      const v = window.view, pe = v.pages[0];
+      const r = pe.inner.getBoundingClientRect();
+      const p = pe.viewport.convertToViewportPoint(q.x, q.y);
+      const fy = (a) => (Array.isArray(a) ? a[1] : a.y);
+      const box = v.scrollEl.getBoundingClientRect();
+      const want = r.top + fy(p);
+      if (want < box.top + 60 || want > box.top + box.height - 60) {
+        v.scrollEl.scrollTop += want - (box.top + box.height * 0.45);
+      }
+    }, pdfPt);
+    await new Promise((r) => setTimeout(r, 350));
+    return page.evaluate((q) => window.__toScreen(q.x, q.y), pdfPt);
+  };
+
+  const dragBy = async (pressPdf, toolId, dxPx, dyPx) => {
+    await page.evaluate((id) => document.querySelector(`.pdfann-tool[data-tool="${id}"]`).click(), toolId);
+    const p = await pointFor(pressPdf);
+    await page.mouse.move(p.x, p.y);
+    await page.mouse.down();
+    await page.mouse.move(p.x + dxPx, p.y + dyPx, { steps: 10 });
+    await page.mouse.up();
+    await new Promise((r) => setTimeout(r, 200));
+  };
+
+  // text box: press inside the card, 70x50 px, with the text box tool armed
+  const tbDrag = await page.evaluate((c) => {
+    const v = window.view;
+    const now = Date.now();
+    v.store.add(v.file.path, {
+      id: "drag-tb", page: 1, type: "textbox", color: "#1f2430", size: 11,
+      pt: { x: c.x - 70, y: c.y + 30 }, w: 160, text: "拖动这个文字块",
+      bg: null, created: now, updated: now,
+    });
+    v.paintPage(v.pages[0]);
+    const a = v.store.annotsOf(v.file.path, 1).find((x) => x.id === "drag-tb");
+    return { pt: { ...a.pt }, n: v.store.annotsOf(v.file.path, 1).filter((x) => x.type === "textbox").length };
+  }, mid);
+  await dragBy({ x: tbDrag.pt.x + 25, y: tbDrag.pt.y - 12 }, "textbox", 70, 50);
+  const tbAfter = await page.evaluate(() => {
+    const v = window.view;
+    const list = v.store.annotsOf(v.file.path, 1);
+    return { pt: list.find((x) => x.id === "drag-tb").pt, n: list.filter((x) => x.type === "textbox").length };
+  });
+  report(
+    "文字批注：工具仍选中时可直接拖动已有文字块",
+    Math.abs(tbAfter.pt.x - tbDrag.pt.x) > 5 && Math.abs(tbAfter.pt.y - tbDrag.pt.y) > 5 && tbAfter.n === tbDrag.n,
+    JSON.stringify({ before: tbDrag.pt, after: tbAfter.pt, count: tbDrag.n + "->" + tbAfter.n })
+  );
+
+  // note: press the pin, with the note tool armed
+  const noteDrag = await page.evaluate((c) => {
+    const v = window.view;
+    const now = Date.now();
+    v.store.add(v.file.path, {
+      id: "drag-note", page: 1, type: "note", color: "#f2c200",
+      pt: { x: c.x + 60, y: c.y - 40 }, text: "拖动这个便签",
+      created: now, updated: now,
+    });
+    v.paintPage(v.pages[0]);
+    const a = v.store.annotsOf(v.file.path, 1).find((x) => x.id === "drag-note");
+    return { pt: { ...a.pt }, n: v.store.annotsOf(v.file.path, 1).filter((x) => x.type === "note").length };
+  }, mid);
+  await dragBy({ x: noteDrag.pt.x - 1, y: noteDrag.pt.y - 8 }, "note", -60, 40);
+  const noteAfter = await page.evaluate(() => {
+    const v = window.view;
+    const list = v.store.annotsOf(v.file.path, 1);
+    return { pt: list.find((x) => x.id === "drag-note").pt, n: list.filter((x) => x.type === "note").length };
+  });
+  report(
+    "便签：工具仍选中时可直接拖动已有便签",
+    Math.abs(noteAfter.pt.x - noteDrag.pt.x) > 5 && noteAfter.n === noteDrag.n,
+    JSON.stringify({ before: noteDrag.pt, after: noteAfter.pt, count: noteDrag.n + "->" + noteAfter.n })
+  );
+
+  // rect: press its border (the interior stays free for drawing a nested box)
+  const rectDrag = await page.evaluate((c) => {
+    const v = window.view;
+    const now = Date.now();
+    v.store.add(v.file.path, {
+      id: "drag-rect", page: 1, type: "rect", color: "#f08c1a", width: 1.6,
+      p0: { x: c.x - 90, y: c.y + 90 }, p1: { x: c.x + 90, y: c.y - 20 },
+      created: now, updated: now,
+    });
+    v.paintPage(v.pages[0]);
+    const a = v.store.annotsOf(v.file.path, 1).find((x) => x.id === "drag-rect");
+    return { p0: { ...a.p0 }, n: v.store.annotsOf(v.file.path, 1).filter((x) => x.type === "rect").length };
+  }, mid);
+  await dragBy({ x: mid.x - 90, y: mid.y + 35 }, "rect", 40, 30);
+  const rectAfter = await page.evaluate(() => {
+    const v = window.view;
+    const list = v.store.annotsOf(v.file.path, 1);
+    return { p0: list.find((x) => x.id === "drag-rect").p0, n: list.filter((x) => x.type === "rect").length };
+  });
+  report(
+    "图形：工具仍选中时可直接拖动已有方框（拖边框，框内仍可继续画新框）",
+    Math.abs(rectAfter.p0.x - rectDrag.p0.x) > 5 && rectAfter.n === rectDrag.n,
+    JSON.stringify({ before: rectDrag.p0, after: rectAfter.p0, count: rectDrag.n + "->" + rectAfter.n })
+  );
+
+  // ink: press on the stroke itself with the pen armed
+  const inkDrag = await page.evaluate((c) => {
+    const v = window.view;
+    const now = Date.now();
+    const strokes = [[{ x: c.x - 80, y: c.y - 120 }, { x: c.x - 20, y: c.y - 120 }, { x: c.x + 60, y: c.y - 120 }]];
+    v.store.add(v.file.path, {
+      id: "drag-ink", page: 1, type: "ink", color: "#e03131", width: 4, opacity: 1,
+      strokes, created: now, updated: now,
+    });
+    v.paintPage(v.pages[0]);
+    return { first: { ...strokes[0][0] }, n: v.store.annotsOf(v.file.path, 1).filter((x) => x.type === "ink").length };
+  }, mid);
+  await dragBy({ x: inkDrag.first.x + 40, y: inkDrag.first.y }, "pen", 50, 45);
+  const inkAfter = await page.evaluate(() => {
+    const v = window.view;
+    const list = v.store.annotsOf(v.file.path, 1);
+    const a = list.find((x) => x.id === "drag-ink");
+    return { first: { ...a.strokes[0][0] }, n: list.filter((x) => x.type === "ink").length };
+  });
+  report(
+    "手写：工具仍选中时按在已有笔迹上可直接拖走（不会多画一笔）",
+    Math.abs(inkAfter.first.x - inkDrag.first.x) > 5 && inkAfter.n === inkDrag.n,
+    JSON.stringify({ before: inkDrag.first, after: inkAfter.first, count: inkDrag.n + "->" + inkAfter.n })
+  );
+
+  // ink in select mode
+  await page.evaluate(() => document.querySelector('.pdfann-tool[data-tool="select"]').click());
+  const selInkBefore = await page.evaluate(() => {
+    const v = window.view;
+    const a = v.store.annotsOf(v.file.path, 1).find((x) => x.id === "drag-ink");
+    return { ...a.strokes[0][0] };
+  });
+  const selPress = await pointFor(selInkBefore);
+  await page.mouse.move(selPress.x + 40, selPress.y);
+  await page.mouse.down();
+  await page.mouse.move(selPress.x + 40 - 45, selPress.y + 40, { steps: 10 });
+  await page.mouse.up();
+  await new Promise((r) => setTimeout(r, 200));
+  const selInkAfter = await page.evaluate(() => {
+    const v = window.view;
+    const a = v.store.annotsOf(v.file.path, 1).find((x) => x.id === "drag-ink");
+    return { ...a.strokes[0][0] };
+  });
+  report(
+    "「选中」工具下笔迹也能拖动",
+    Math.abs(selInkAfter.x - selInkBefore.x) > 5,
+    JSON.stringify({ before: selInkBefore, after: selInkAfter })
+  );
+
+  const toolLabels = await page.evaluate(() =>
+    Array.from(document.querySelectorAll(".pdfann-tool-label")).map((e) => e.textContent)
+  );
+  report("工具栏标签为「选中」", toolLabels[0] === "选中", JSON.stringify(toolLabels));
+
+  // tidy up so the final screenshot shows the demo annotations only
+  await page.evaluate(() => {
+    const v = window.view;
+    for (const id of ["drag-tb", "drag-note", "drag-rect", "drag-ink"]) v.store.remove(v.file.path, id);
+    v.setTool("select");
+    v.repaintAll();
+  });
+
   // ---------- 4. eraser / persist sanity ----------
   const sum = await page.evaluate(() => {
     const v = window.view;
