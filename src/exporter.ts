@@ -65,9 +65,8 @@ export function buildMarkdown(file: TFile, annots: Annot[], _title: string): str
         }
         lines.push("");
       } else if (a.type === "note" || a.type === "textbox") {
-        const n = a as any;
         const head = a.type === "note" ? typeLabel("note") : typeLabel("textbox");
-        lines.push(`- **${head}**: ${(n.text || "").replace(/\n/g, " ")} · ${link(p)}`);
+        lines.push(`- **${head}**: ${(a.text || "").replace(/\n/g, " ")} · ${link(p)}`);
       } else if (a.type === "ink") {
         const ink = a;
         const n = ink.strokes.reduce((s, st) => s + st.length, 0);

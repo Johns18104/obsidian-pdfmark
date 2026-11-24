@@ -1,3 +1,5 @@
+import type { PDFPageProxy } from "pdfjs-dist";
+import type { TextContent } from "pdfjs-dist/types/src/display/api";
 import { PRect } from "./types";
 
 export interface TextItemBox {
@@ -12,28 +14,30 @@ export interface TextItemBox {
 
 const CJK = /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef\u3000-\u303f]/;
 
-export async function getTextItems(page: any): Promise<TextItemBox[]> {
+export async function getTextItems(page: PDFPageProxy): Promise<TextItemBox[]> {
   const out: TextItemBox[] = [];
-  let tc: any;
+  let tc: TextContent | null = null;
   try {
     tc = await page.getTextContent();
   } catch {
     return out;
   }
-  const items = (tc && tc.items) || [];
-  const styles = (tc && tc.styles) || {};
+  const items = tc?.items ?? [];
+  const styles: Record<string, { fontFamily?: string }> = tc?.styles ?? {};
   for (const it of items) {
+    // Marked-content items carry no glyphs; only text items have `str`.
+    if (!("str" in it)) continue;
     const str = it.str;
     if (!str || !str.trim()) continue;
-    const tr = it.transform || [1, 0, 0, 1, 0, 0];
+    const tr = Array.isArray(it.transform) ? it.transform.map(Number) : [1, 0, 0, 1, 0, 0];
     const scaleY = Math.hypot(tr[2], tr[3]) || 1;
-    const h = (it.height || scaleY) as number;
-    let w = (it.width || 0) as number;
+    const h = it.height || scaleY;
+    let w = it.width || 0;
     if (!w) {
       w = Math.max(1, str.length * h * 0.5);
     }
-    const x = tr[4] as number;
-    const yBase = tr[5] as number;
+    const x = tr[4];
+    const yBase = tr[5];
     const style = styles[it.fontName] || {};
     out.push({
       str,
@@ -205,7 +209,7 @@ function measureWidths(str: string, family: string, size: number): number[] | nu
   if (cached !== undefined) return cached;
   try {
     if (!measureCtx) {
-      const cv = document.createElement("canvas");
+      const cv = createEl("canvas");
       cv.width = cv.height = 1;
       measureCtx = cv.getContext("2d");
     }
@@ -268,7 +272,7 @@ export function buildLayout(items: TextItemBox[]): TextLayout {
         const k = sum > 0 ? b.w / sum : 0;
         widths = raw.map((v) => v * k);
       } else {
-        widths = new Array(n).fill(b.w / n);
+        widths = new Array<number>(n).fill(b.w / n);
       }
       let cursor = b.x;
       for (let k = 0; k < n; k++) {

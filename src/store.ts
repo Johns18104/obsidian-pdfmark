@@ -1,4 +1,13 @@
-import { Annot, FileRecord, PRect } from "./types";
+import { Annot, FileRecord, PRect, PluginData } from "./types";
+
+/**
+ * The slice of the plugin the store needs. Declared structurally instead of
+ * importing the plugin class, so store.ts and main.ts do not import each other.
+ */
+export interface StoreHost {
+  data: PluginData;
+  persist(): Promise<void>;
+}
 
 /**
  * All annotation data lives inside the plugin's own data.json
@@ -7,7 +16,7 @@ import { Annot, FileRecord, PRect } from "./types";
 export class AnnotStore {
   private timer: number | null = null;
 
-  constructor(private plugin: any) {}
+  constructor(private plugin: StoreHost) {}
 
   private get files(): Record<string, FileRecord> {
     return this.plugin.data.files;
@@ -21,7 +30,7 @@ export class AnnotStore {
     if (this.timer) window.clearTimeout(this.timer);
     this.timer = window.setTimeout(() => {
       this.timer = null;
-      this.plugin.persist().catch((e: any) => console.error(e));
+      this.plugin.persist().catch((e: unknown) => console.error(e));
     }, 400);
   }
 

@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.1.7 — the type warnings, and a correction to 1.1.6
+
+The 1.1.6 notes said the ~300 `any` warnings "come from Obsidian's loosely typed
+API surface". That was wrong, and worth correcting: most of them started at
+**our own** `any` annotations — `plugin: any`, `pdfDoc: any`, `viewport: any`,
+`files: Record<string, any>` — and every read through one of those turned into
+another warning downstream. Fifteen seeds, three hundred findings.
+
+They are all gone now; the source lints at **2 warnings and 0 errors**.
+
+- **The plugin instance has a type.** `PDFView` and `AnnotStore` take a small
+  structural `ViewHost` / `StoreHost` interface instead of `any`, so
+  `this.plugin.settings` and `this.store.annotsOf(...)` are checked. Declared
+  structurally on purpose: `view.ts` still does not import `main.ts`.
+- **pdf.js objects are typed**, using the declarations the package already
+  ships: `PDFDocumentProxy`, `PDFPageProxy`, `PageViewport`, `RenderTask`,
+  `RefProxy`, `DocumentInitParameters`. Coordinate conversion needs no `any`
+  any more: `PageViewport.convertToViewportPoint()` returns `any[]`, so one
+  `toPt()` helper takes the pair and returns a plain `{x, y}`.
+- **`data.json` has a shape.** `PluginData` (`types.ts`) is now the single
+  definition of `{ settings, files, crops }`, shared by the plugin, the store
+  and the settings tab; `loadData()` is read once through
+  `Partial<PluginData>`. The outline cache and drag geometry got named types
+  too (`OutlineNode`, `Geom`), which replaced eight `(a as any)` casts with
+  ordinary `in` narrowing.
+- **`catch (e)` is `unknown`**, formatted by one `errText()` helper, and
+  `errText` reads `message` only when it is really there.
+- **No more `as any` on the Obsidian API:** the vault adapters that carry
+  `getResourcePath` are described by an intersection type, and
+  `applyLanguage()` uses `instanceof PDFView` instead of poking at
+  `leaf.view.refreshLanguage`.
+- **A real bug fell out of it:** `burn()` used to hand `modifyBinary()` a
+  `Uint8Array` behind an `as any`; it now passes an exact-length `ArrayBuffer`.
+  Same bytes, but the call matches the documented signature.
+- **The text measurer** uses `createEl("canvas")` instead of
+  `document.createElement`, the last remaining place that reached for the
+  global document.
+- **Behaviour is unchanged.** These are type annotations only, and the bundle
+  is built by esbuild, which does not type-check — the emitted `main.js` draws
+  the same pixels and writes the same PDF. All 46 browser assertions still
+  pass.
+- **So it stays checked:** `npm run typecheck` (`tsc --noEmit`) is now a
+  script, and the source compiles with zero errors.
+- **Still open, on purpose:** the last two warnings are `setWarning()` (use
+  `setDestructive()`) and the declarative settings API — both need Obsidian
+  **1.13.0**. Adopting them would raise `minAppVersion` and lock out everyone
+  on 1.8.7–1.12, so they stay until 1.13 is the common version.
+
 ## 1.1.6 — the API-version error, and the linter that should have caught it
 
 1.1.5 traded one warning for a new **error**: it started calling `getLanguage()`,

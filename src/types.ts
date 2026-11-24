@@ -122,6 +122,16 @@ export interface PluginSettings {
   sidebarOpen: boolean;
 }
 
+/**
+ * Everything the plugin writes to data.json. Declared once here so the store,
+ * the views and the settings tab all read the same shape.
+ */
+export interface PluginData {
+  settings: PluginSettings;
+  files: Record<string, FileRecord>;
+  crops: Record<string, Record<string, PRect>>;
+}
+
 export const DEFAULT_SETTINGS: PluginSettings = {
   language: "auto",
   takeOverPdf: false,

@@ -1,4 +1,5 @@
 import {
+  DataAdapter,
   Notice,
   Plugin,
   PluginSettingTab,
@@ -14,17 +15,15 @@ import {
   MAX_PEN_WIDTH,
   MAX_SHAPE_WIDTH,
   MIN_FONT_SIZE,
+  PluginData,
   PluginSettings,
 } from "./types";
 import { AnnotStore } from "./store";
 import { PDFView } from "./view";
 import { LangSetting, setLanguage, t, tf } from "./i18n";
 
-interface PluginData {
-  settings: PluginSettings;
-  files: Record<string, any>;
-  crops: Record<string, any>;
-}
+/** Only the filesystem adapters have a real resource URL; mobile ones do not. */
+type AdapterWithResourcePath = DataAdapter & { getResourcePath?: (path: string) => string };
 
 export default class PdfAnnotatorPlugin extends Plugin {
   data: PluginData = { settings: { ...DEFAULT_SETTINGS }, files: {}, crops: {} };
@@ -32,11 +31,11 @@ export default class PdfAnnotatorPlugin extends Plugin {
   declare settings: PluginSettings;
 
   async onload() {
-    const raw = (await this.loadData()) || {};
+    const raw = ((await this.loadData()) as Partial<PluginData> | null) ?? {};
     this.data = {
-      settings: Object.assign({}, DEFAULT_SETTINGS, raw.settings || {}),
-      files: raw.files || {},
-      crops: raw.crops || {},
+      settings: { ...DEFAULT_SETTINGS, ...(raw.settings ?? {}) },
+      files: raw.files ?? {},
+      crops: raw.crops ?? {},
     };
     this.settings = this.data.settings;
     // Old data files may hold a stroke width or font size outside today's
@@ -125,22 +124,22 @@ export default class PdfAnnotatorPlugin extends Plugin {
   assetUrl(rel: string): string {
     const p = normalizePath(`${this.app.vault.configDir}/plugins/${this.manifest.id}/${rel}`);
     try {
-      const adapter: any = this.app.vault.adapter;
-      if (typeof adapter.getResourcePath === "function") {
-        const url = adapter.getResourcePath(p);
-        if (url) return url;
-      }
+      const adapter = this.app.vault.adapter as AdapterWithResourcePath;
+      const url = adapter.getResourcePath?.(p);
+      if (url) return url;
     } catch { /* ignore */ }
     return "";
   }
 
   async backupPdf(file: TFile, bytes: Uint8Array) {
     try {
-      const adapter: any = this.app.vault.adapter;
+      const adapter = this.app.vault.adapter;
       const dir = normalizePath(`${this.app.vault.configDir}/plugins/${this.manifest.id}/backups`);
       if (!(await adapter.exists(dir))) await adapter.mkdir(dir);
       const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      const buf: any = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      // A Uint8Array view over a larger buffer must be copied out by its own
+      // offset; writeBinary wants that contiguous ArrayBuffer.
+      const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
       await adapter.writeBinary(`${dir}/${file.basename}-${stamp}.pdf`, buf);
     } catch (e) {
       console.warn("[pdfmark] backup failed", e);
@@ -154,8 +153,8 @@ export default class PdfAnnotatorPlugin extends Plugin {
   /** Re-render the text of every open PDF view after a language switch. */
   applyLanguage() {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_PDF)) {
-      const view = leaf.view as any;
-      if (view && typeof view.refreshLanguage === "function") view.refreshLanguage();
+      const view = leaf.view;
+      if (view instanceof PDFView) view.refreshLanguage();
     }
   }
 }

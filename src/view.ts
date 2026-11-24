@@ -1,5 +1,9 @@
-import { ItemView, TFile, WorkspaceLeaf, setIcon, Notice, Menu } from "obsidian";
+import { ItemView, TFile, ViewStateResult, WorkspaceLeaf, setIcon, Notice, Menu } from "obsidian";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
+import type { PDFDocumentProxy, PageViewport, RenderTask } from "pdfjs-dist";
+// The root pdfjs-dist entry only re-exports some of its types; these two are
+// only declared on the display/api module.
+import type { DocumentInitParameters, RefProxy } from "pdfjs-dist/types/src/display/api";
 import { PDF_WORKER_B64 } from "./worker-b64";
 import { AnnotStore } from "./store";
 import { arrowHead } from "./arrow";
@@ -53,20 +57,51 @@ const WORKER_URL = (() => {
   }
 })();
 
+/** Error → message, for the places that show a failure string to the user. */
+function errText(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "object" && e && "message" in e && typeof e.message === "string") return e.message;
+  return typeof e === "string" ? e : "unknown error";
+}
+
+/**
+ * Pointer events are coalesced by the browser; Chrome and Safari expose the
+ * dropped samples through getCoalescedEvents(), Firefox has no such method.
+ */
+function coalesced(e: PointerEvent): PointerEvent[] {
+  const all = (e as PointerEvent & { getCoalescedEvents?: () => PointerEvent[] }).getCoalescedEvents?.();
+  return all && all.length ? all : [e];
+}
+
+/**
+ * The slice of the plugin a PDF view talks to. Declared structurally so view.ts
+ * does not have to import main.ts (which imports view.ts).
+ */
+export interface ViewHost {
+  store: AnnotStore;
+  settings: PluginSettings;
+  saveSettings(): Promise<void>;
+  assetUrl(rel: string): string;
+  backupPdf(file: TFile, bytes: Uint8Array): Promise<void>;
+}
+
 /**
  * pdf.js returns coordinate conversions as [x, y] arrays (Util.applyTransform),
  * while older builds returned {x, y}. Normalise both so callers never see NaN.
  */
-function vpPt(vp: any, x: number, y: number): { x: number; y: number } {
-  const p: any = vp.convertToViewportPoint(x, y);
-  if (Array.isArray(p)) return { x: p[0], y: p[1] };
-  return { x: p.x, y: p.y };
+function toPt(p: unknown): Pt {
+  if (Array.isArray(p)) return { x: Number(p[0]), y: Number(p[1]) };
+  return p as Pt;
 }
 
-function pdfPt(vp: any, x: number, y: number): { x: number; y: number } {
-  const p: any = vp.convertToPdfPoint(x, y);
-  if (Array.isArray(p)) return { x: p[0], y: p[1] };
-  return { x: p.x, y: p.y };
+function vpPt(vp: PageViewport | null, x: number, y: number): Pt {
+  if (!vp) return { x: 0, y: 0 };
+  return toPt(vp.convertToViewportPoint(x, y));
+}
+
+function pdfPt(vp: PageViewport | null, x: number, y: number): Pt {
+  if (!vp) return { x: 0, y: 0 };
+  return toPt(vp.convertToPdfPoint(x, y));
 }
 
 function distToSegment(
@@ -84,12 +119,12 @@ function distToSegment(
 }
 
 let workerConfigured = false;
-function configureWorker(plugin: any) {
+function configureWorker(plugin: ViewHost) {
   if (workerConfigured) return;
   workerConfigured = true;
   if (!WORKER_URL) return;
   try {
-    (pdfjsLib.GlobalWorkerOptions as any).workerPort = new Worker(WORKER_URL);
+    pdfjsLib.GlobalWorkerOptions.workerPort = new Worker(WORKER_URL);
     return;
   } catch (e) {
     console.warn("[pdfmark] blob worker failed, trying file worker", e);
@@ -123,14 +158,29 @@ interface PageEl {
   inkCtx: CanvasRenderingContext2D | null;
   svg: SVGSVGElement;
   draw: HTMLElement;
-  viewport: any;
+  viewport: PageViewport | null;
   w: number;
   h: number;
   rendered: boolean;
   rendering: boolean;
-  task: any;
+  task: RenderTask | null;
   items: TextItemBox[] | null;
   layout?: TextLayout | null;
+}
+
+/** What Obsidian persists for this view: just the file it was showing. */
+interface PdfViewState extends Record<string, unknown> {
+  file?: string;
+}
+
+/** The movable geometry of an annotation, in whatever shape that kind uses. */
+type Geom = { strokes: Pt[][] } | { pt: Pt } | { p0: Pt; p1: Pt };
+
+/** One bookmark of the PDF outline; only the fields the sidebar uses. */
+interface OutlineNode {
+  title: string;
+  dest: string | unknown[] | null;
+  items: OutlineNode[];
 }
 
 interface ToolDef {
@@ -163,12 +213,12 @@ function setToolIcon(host: HTMLElement, icon: string, fallback: string) {
 }
 
 export class PDFView extends ItemView {
-  plugin: any;
+  plugin: ViewHost;
   store: AnnotStore;
   settings: PluginSettings;
 
   file: TFile | null = null;
-  pdfDoc: any = null;
+  pdfDoc: PDFDocumentProxy | null = null;
   pdfBytes: Uint8Array | null = null;
   numPages = 0;
   pageSizes: { w: number; h: number; rot: number }[] = [];
@@ -202,12 +252,11 @@ export class PDFView extends ItemView {
   /** Snapshot taken when a slider drag starts, so the whole drag is one undo step. */
   private widthBaseline: string | null = null;
   private widthUndoPushed = false;
-  private drag: any = null;
   private scrollTick = 0;
   private lastScrollTop = 0;
   private sideTab: "annots" | "outline" = "annots";
 
-  constructor(leaf: WorkspaceLeaf, plugin: any) {
+  constructor(leaf: WorkspaceLeaf, plugin: ViewHost) {
     super(leaf);
     this.plugin = plugin;
     this.store = plugin.store;
@@ -231,21 +280,21 @@ export class PDFView extends ItemView {
     this.contentEl.addClass("pdfann-root");
     this.buildUI();
     this.uiReady = true;
-    const st: any = this.getState();
-    const path = this.pendingPath || (st && st.file);
+    const path = this.pendingPath || this.getState().file;
     if (path) await this.openPath(path);
   }
 
-  getState() {
-    const base: any = super.getState();
+  getState(): PdfViewState {
+    const base = super.getState() as PdfViewState | null;
     return { ...base, file: this.file ? this.file.path : this.pendingPath || undefined };
   }
 
-  async setState(state: any, result: any) {
+  async setState(state: unknown, result: ViewStateResult) {
     await super.setState(state, result);
-    if (state && state.file) {
-      this.pendingPath = state.file;
-      if (this.uiReady) await this.openPath(state.file);
+    const file = (state as PdfViewState | null)?.file;
+    if (file) {
+      this.pendingPath = file;
+      if (this.uiReady) await this.openPath(file);
     }
   }
 
@@ -267,7 +316,7 @@ export class PDFView extends ItemView {
     this.removePopup();
     if (this.pdfDoc) {
       try {
-        this.pdfDoc.destroy();
+        void this.pdfDoc.destroy();
       } catch { /* ignore */ }
       this.pdfDoc = null;
     }
@@ -385,7 +434,7 @@ export class PDFView extends ItemView {
     side.onclick = () => {
       this.settings.sidebarOpen = !this.settings.sidebarOpen;
       this.sideEl.toggleClass("is-hidden", !this.settings.sidebarOpen);
-      this.plugin.saveSettings();
+      void this.plugin.saveSettings();
       this.afterLayoutChange();
     };
 
@@ -477,11 +526,11 @@ export class PDFView extends ItemView {
       const buf = await this.app.vault.readBinary(this.file);
       this.pdfBytes = new Uint8Array(buf);
     } catch (e) {
-      this.showProgress(t("读取文件失败：", "Could not read the file: ") + e);
+      this.showProgress(t("读取文件失败：", "Could not read the file: ") + errText(e));
       return;
     }
     try {
-      const params: any = {
+      const params: DocumentInitParameters = {
         data: this.pdfBytes.slice(0),
         isEvalSupported: false,
         cMapPacked: true,
@@ -494,7 +543,7 @@ export class PDFView extends ItemView {
       };
       this.pdfDoc = await pdfjsLib.getDocument(params).promise;
     } catch (e) {
-      this.showProgress(t("PDF 解析失败：", "Could not open the PDF: ") + (e && e.message ? e.message : e));
+      this.showProgress(t("PDF 解析失败：", "Could not open the PDF: ") + errText(e));
       return;
     }
     this.numPages = this.pdfDoc.numPages;
@@ -524,13 +573,15 @@ export class PDFView extends ItemView {
   }
 
   private async readAllSizes(n: number) {
-    const out: { w: number; h: number; rot: number }[] = new Array(n);
+    const out: { w: number; h: number; rot: number }[] = new Array<{ w: number; h: number; rot: number }>(n);
+    const doc = this.pdfDoc;
+    if (!doc) return out;
     let idx = 1;
     const worker = async () => {
       while (idx <= n) {
         const i = idx++;
         try {
-          const p = await this.pdfDoc.getPage(i);
+          const p = await doc.getPage(i);
           const vp = p.getViewport({ scale: 1 });
           out[i - 1] = { w: vp.width, h: vp.height, rot: p.rotate || 0 };
         } catch {
@@ -672,13 +723,13 @@ export class PDFView extends ItemView {
         canvasContext: ctx,
         viewport,
         transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
-      } as any);
+      });
       pe.task = task;
       await task.promise;
       pe.rendered = true;
       this.paintPage(pe);
-    } catch (e: any) {
-      if (e && e.name === "RenderingCancelledException") return;
+    } catch (e) {
+      if (e instanceof Error && e.name === "RenderingCancelledException") return;
       console.error("[pdfmark] render failed page", pe.num, e);
     } finally {
       pe.rendering = false;
@@ -946,11 +997,11 @@ export class PDFView extends ItemView {
 
     if (a.type === "note" || a.type === "textbox") {
       const isNote = a.type === "note";
-      const text = (a as any).text || "";
+      const text = a.text || "";
       const sizePt = isNote
-        ? Math.max(6, (a).size || this.settings.noteSize)
-        : Math.max(6, (a).size || this.settings.textSize);
-      const wrapPt = isNote ? 210 : Math.max(40, (a).w || this.settings.textWidth);
+        ? Math.max(6, a.size || this.settings.noteSize)
+        : Math.max(6, a.size || this.settings.textSize);
+      const wrapPt = isNote ? 210 : Math.max(40, a.w || this.settings.textWidth);
       const px = sizePt * s;
       const pad = px * 0.35;
       const box = layoutText(text, px, wrapPt * s);
@@ -960,7 +1011,7 @@ export class PDFView extends ItemView {
       let xPx: number;
       let topPx: number;
       if (isNote) {
-        const p = vpPt(vp, (a).pt.x, (a).pt.y);
+        const p = vpPt(vp, a.pt.x, a.pt.y);
         const pin = 16;
         const pinRect = this.svgEl("rect", {
           x: p.x - 2,
@@ -977,7 +1028,7 @@ export class PDFView extends ItemView {
         xPx = p.x + pin;
         topPx = p.y - pin + 2;
       } else {
-        const p = vpPt(vp, (a).pt.x, (a).pt.y);
+        const p = vpPt(vp, a.pt.x, a.pt.y);
         xPx = p.x;
         topPx = p.y;
       }
@@ -1004,7 +1055,7 @@ export class PDFView extends ItemView {
           "font-family": TEXT_FONT,
           // A note's colour belongs to its pin and spine; the body stays dark,
           // otherwise a yellow note would render pale yellow text on white.
-          fill: isNote ? "#1f2430" : (a as any).color || "#1f2430",
+          fill: isNote ? "#1f2430" : a.color || "#1f2430",
           "dominant-baseline": "text-before-edge",
           "xml:space": "preserve",
         });
@@ -1305,10 +1356,11 @@ export class PDFView extends ItemView {
   /** The slider value that represents the current selection (or tool default). */
   private widthOf(a: Annot | null): number {
     if (!a) return this.currentWidth();
-    if (a.type === "textbox") return Math.max(6, (a).size || this.settings.textSize);
-    if (a.type === "note") return Math.max(6, (a).size || this.settings.noteSize);
-    const w = (a as any).width;
-    return typeof w === "number" ? w : this.currentWidth();
+    if (a.type === "textbox") return Math.max(6, a.size || this.settings.textSize);
+    if (a.type === "note") return Math.max(6, a.size || this.settings.noteSize);
+    // Text marks have no stroke width; ink and shapes do.
+    if ("width" in a && typeof a.width === "number") return a.width;
+    return this.currentWidth();
   }
 
   /** "第 3 页" / "page 3" — used in citations and the sidebar. */
@@ -1364,7 +1416,7 @@ export class PDFView extends ItemView {
     const sel = this.selectedAnnot();
     if (sel && "color" in sel) {
       this.pushUndo();
-      (sel as any).color = c;
+      sel.color = c;
       this.repaintAll();
       void this.renderSidebar();
     }
@@ -1384,7 +1436,7 @@ export class PDFView extends ItemView {
       default:
         this.settings.shapeColor = c;
     }
-    this.plugin.saveSettings();
+    void this.plugin.saveSettings();
     this.updateOptions();
   }
 
@@ -1413,8 +1465,8 @@ export class PDFView extends ItemView {
           a.updated = Date.now();
           changed = true;
         }
-      } else if ("width" in sel && (sel as any).width !== w) {
-        (sel as any).width = w;
+      } else if ("width" in sel && sel.width !== w) {
+        sel.width = w;
         changed = true;
       }
       if (changed) {
@@ -1453,7 +1505,7 @@ export class PDFView extends ItemView {
         default:
           this.settings.shapeWidth = w;
       }
-      this.plugin.saveSettings();
+      void this.plugin.saveSettings();
     }
   }
 
@@ -2028,8 +2080,7 @@ export class PDFView extends ItemView {
       ctx.restore();
     };
     const onMove = (e: PointerEvent) => {
-      const events = (e as any).getCoalescedEvents ? (e as any).getCoalescedEvents() : [e];
-      for (const ce of events) drawSeg(ce);
+      for (const ce of coalesced(e)) drawSeg(ce);
     };
     const finish = () => {
       layer.removeEventListener("pointermove", onMove);
@@ -2092,8 +2143,7 @@ export class PDFView extends ItemView {
 
     eraseAt(ev);
     const onMove = (e: PointerEvent) => {
-      const events = (e as any).getCoalescedEvents ? (e as any).getCoalescedEvents() : [e];
-      for (const ce of events) eraseAt(ce);
+      for (const ce of coalesced(e)) eraseAt(ce);
     };
     const finish = () => {
       layer.removeEventListener("pointermove", onMove);
@@ -2112,7 +2162,7 @@ export class PDFView extends ItemView {
     layer.addEventListener("pointercancel", finish);
   }
 
-  private startShape(pe: PageEl, ev: PointerEvent, tool: Tool) {
+  private startShape(pe: PageEl, ev: PointerEvent, tool: ShapeAnnot["type"]) {
     ev.preventDefault();
     const layer = pe.draw;
     const p0 = this.toPdf(pe, ev.clientX, ev.clientY);
@@ -2178,7 +2228,7 @@ export class PDFView extends ItemView {
       const a: ShapeAnnot = {
         id: uid(),
         page: pe.num,
-        type: tool as any,
+        type: tool,
         color,
         width,
         p0,
@@ -2297,28 +2347,25 @@ export class PDFView extends ItemView {
     layer.addEventListener("pointercancel", finish);
   }
 
-  private cloneGeom(a: Annot): any {
-    if (a.type === "ink") {
-      return (a).strokes.map((s) => s.map((q) => ({ x: q.x, y: q.y })));
-    }
-    if (a.type === "note" || a.type === "textbox") return { pt: { ...(a as NoteAnnot).pt } };
+  /** A copy of the geometry a drag has to move, in whichever shape it has. */
+  private cloneGeom(a: Annot): Geom | null {
+    if (a.type === "ink") return { strokes: a.strokes.map((s) => s.map((q) => ({ x: q.x, y: q.y }))) };
+    if (a.type === "note" || a.type === "textbox") return { pt: { ...a.pt } };
     if (a.type === "line" || a.type === "rect" || a.type === "ellipse" || a.type === "arrow") {
-      const sh = a;
-      return { p0: { ...sh.p0 }, p1: { ...sh.p1 } };
+      return { p0: { ...a.p0 }, p1: { ...a.p1 } };
     }
     return null;
   }
 
-  private translateFrom(a: Annot, orig: any, dx: number, dy: number) {
+  private translateFrom(a: Annot, orig: Geom | null, dx: number, dy: number) {
     if (!orig) return;
-    if (a.type === "ink") {
-      (a).strokes = orig.map((s: Pt[]) => s.map((q) => ({ x: q.x + dx, y: q.y + dy })));
-    } else if (a.type === "note" || a.type === "textbox") {
-      (a as NoteAnnot).pt = { x: orig.pt.x + dx, y: orig.pt.y + dy };
-    } else if (orig.p0) {
-      const sh = a as ShapeAnnot;
-      sh.p0 = { x: orig.p0.x + dx, y: orig.p0.y + dy };
-      sh.p1 = { x: orig.p1.x + dx, y: orig.p1.y + dy };
+    if (a.type === "ink" && "strokes" in orig) {
+      a.strokes = orig.strokes.map((s) => s.map((q) => ({ x: q.x + dx, y: q.y + dy })));
+    } else if ((a.type === "note" || a.type === "textbox") && "pt" in orig) {
+      a.pt = { x: orig.pt.x + dx, y: orig.pt.y + dy };
+    } else if ("p0" in orig && "p1" in orig && "p0" in a) {
+      a.p0 = { x: orig.p0.x + dx, y: orig.p0.y + dy };
+      a.p1 = { x: orig.p1.x + dx, y: orig.p1.y + dy };
     }
   }
 
@@ -2494,7 +2541,7 @@ export class PDFView extends ItemView {
   private applySnapshot(s: string) {
     if (!this.file) return;
     try {
-      this.store.replaceAnnots(this.file.path, JSON.parse(s));
+      this.store.replaceAnnots(this.file.path, JSON.parse(s) as Annot[]);
     } catch { /* ignore */ }
     this.selectedId = null;
     this.repaintAll();
@@ -2600,7 +2647,7 @@ export class PDFView extends ItemView {
           this.flash(a);
         };
         const dot = item.createDiv("pdfann-annot-dot");
-        dot.style.background = (a as any).color || "#888";
+        dot.style.background = "color" in a ? a.color || "#888" : "#888";
         const main = item.createDiv("pdfann-annot-main");
         const label: string = {
           highlight: t("高亮", "Highlight"),
@@ -2619,11 +2666,13 @@ export class PDFView extends ItemView {
           a.type === "ink"
             ? t("手写笔迹", "Ink stroke")
             : a.type === "note" || a.type === "textbox"
-            ? (a as any).text
-            : (a as TextMark).text || label
+            ? a.text
+            : "rects" in a && a.text
+            ? a.text
+            : label
         );
-        if ((a as TextMark).note) {
-          main.createDiv({ cls: "pdfann-annot-note", text: (a as TextMark).note });
+        if ("note" in a && a.note) {
+          main.createDiv({ cls: "pdfann-annot-note", text: a.note });
         }
         main.createDiv({ cls: "pdfann-annot-meta", text: label });
         const del = item.createEl("button", { cls: "pdfann-annot-del" });
@@ -2643,7 +2692,7 @@ export class PDFView extends ItemView {
         body.createDiv({ cls: "pdfann-empty", text: t("这份 PDF 没有书签目录。", "This PDF has no bookmarks.") });
         return;
       }
-      const renderItems = (items: any[], host: HTMLElement, depth: number) => {
+      const renderItems = (items: OutlineNode[], host: HTMLElement, depth: number) => {
         for (const it of items) {
           const row = host.createDiv("pdfann-outline-item");
           row.style.paddingLeft = 8 + depth * 12 + "px";
@@ -2659,26 +2708,33 @@ export class PDFView extends ItemView {
     }
   }
 
-  private outlineCache: any[] | null = null;
+  private outlineCache: OutlineNode[] | null = null;
 
-  private async getOutline() {
+  private async getOutline(): Promise<OutlineNode[]> {
     if (this.outlineCache) return this.outlineCache;
+    const doc = this.pdfDoc;
     try {
-      this.outlineCache = (await this.pdfDoc.getOutline()) || [];
+      this.outlineCache = doc ? (await doc.getOutline()) || [] : [];
     } catch {
       this.outlineCache = [];
     }
     return this.outlineCache;
   }
 
-  private async destToPage(dest: any): Promise<number | null> {
+  /** A bookmark destination is either a named string or [pageRef, ...]. */
+  private async destToPage(dest: string | unknown[] | null): Promise<number | null> {
+    const doc = this.pdfDoc;
+    if (!doc) return null;
     try {
-      if (typeof dest === "string") dest = await this.pdfDoc.getDestination(dest);
-      if (!dest || !dest.length) return null;
-      const ref = dest[0];
+      const target = typeof dest === "string" ? await doc.getDestination(dest) : dest;
+      if (!target || !target.length) return null;
+      const ref: unknown = target[0];
       if (typeof ref === "number") return ref + 1;
-      const idx = await this.pdfDoc.getPageIndex(ref);
-      return idx + 1;
+      if (ref && typeof ref === "object") {
+        const idx = await doc.getPageIndex(ref as RefProxy);
+        return idx + 1;
+      }
+      return null;
     } catch {
       return null;
     }
@@ -2689,18 +2745,18 @@ export class PDFView extends ItemView {
     if (!pe || !pe.viewport) return;
     const box = createDiv("pdfann-flash");
     let r: { x: number; y: number; w: number; h: number } | null = null;
-    if ("rects" in (a as any) && (a as TextMark).rects?.length) {
-      const rs = (a as TextMark).rects.map((x) => this.screenRect(pe, x));
+    if ("rects" in a && a.rects?.length) {
+      const rs = a.rects.map((x) => this.screenRect(pe, x));
       const x0 = Math.min(...rs.map((v) => v.x));
       const y0 = Math.min(...rs.map((v) => v.y));
       const x1 = Math.max(...rs.map((v) => v.x + v.w));
       const y1 = Math.max(...rs.map((v) => v.y + v.h));
       r = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
     } else if (a.type === "note") {
-      const p = vpPt(pe.viewport, (a).pt.x, (a).pt.y);
+      const p = vpPt(pe.viewport, a.pt.x, a.pt.y);
       r = { x: p.x - 14, y: p.y - 32, w: 32, h: 32 };
-    } else if ("strokes" in (a as any)) {
-      const pts = (a as InkAnnot).strokes.reduce((acc, cur) => acc.concat(cur), [] as { x: number; y: number }[]);
+    } else if ("strokes" in a) {
+      const pts = a.strokes.reduce((acc, cur) => acc.concat(cur), [] as Pt[]);
       const sp = pts.map((p) => vpPt(pe.viewport, p.x, p.y));
       if (sp.length) {
         const x0 = Math.min(...sp.map((v) => v.x));
@@ -2709,10 +2765,9 @@ export class PDFView extends ItemView {
         const y1 = Math.max(...sp.map((v) => v.y));
         r = { x: x0 - 6, y: y0 - 6, w: x1 - x0 + 12, h: y1 - y0 + 12 };
       }
-    } else if ("p0" in (a as any)) {
-      const s = a as ShapeAnnot;
-      const p0 = vpPt(pe.viewport, s.p0.x, s.p0.y);
-      const p1 = vpPt(pe.viewport, s.p1.x, s.p1.y);
+    } else if ("p0" in a) {
+      const p0 = vpPt(pe.viewport, a.p0.x, a.p0.y);
+      const p1 = vpPt(pe.viewport, a.p1.x, a.p1.y);
       r = { x: Math.min(p0.x, p1.x) - 6, y: Math.min(p0.y, p1.y) - 6, w: Math.abs(p1.x - p0.x) + 12, h: Math.abs(p1.y - p0.y) + 12 };
     }
     if (!r) return;
@@ -2778,7 +2833,9 @@ export class PDFView extends ItemView {
     try {
       const bytes = await burnAnnotations(this.pdfBytes, annots);
       await this.plugin.backupPdf(this.file, this.pdfBytes);
-      await this.app.vault.modifyBinary(this.file, bytes as any);
+      // modifyBinary wants an ArrayBuffer, and slice() guarantees one that is
+      // exactly the file length (a Uint8Array may be a view over a larger one).
+      await this.app.vault.modifyBinary(this.file, bytes.slice().buffer);
       this.showProgress("");
       new Notice(t("已烧入 PDF（原文件已备份）", "Annotations burned in (original backed up)"));
       const clear = await ConfirmModal.open(this.app, t("清除插件内批注数据？", "Clear the plugin's copy of these annotations?"), t("批注已经写进 PDF，再保留一份会在阅读时重复显示。建议清除。", "They are now part of the PDF; keeping a copy would show them twice, so clearing is recommended."));
@@ -2789,9 +2846,9 @@ export class PDFView extends ItemView {
         void this.renderSidebar();
       }
       await this.loadPdf();
-    } catch (e: any) {
+    } catch (e) {
       this.showProgress("");
-      new Notice(t("写入失败：", "Write failed: ") + (e && e.message ? e.message : e));
+      new Notice(t("写入失败：", "Write failed: ") + errText(e));
       console.error(e);
     }
   }
