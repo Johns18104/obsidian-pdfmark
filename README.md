@@ -182,7 +182,7 @@ npm run typecheck  # tsc --noEmit, no errors expected
 npm run lint       # the community-directory rule set, offline
 ```
 
-The source is fully type-checked; `lint` reports 0 errors and, as of 1.1.7, only
+The source is fully type-checked; `lint` reports 0 errors and, as of 1.1.8, only
 the two findings that would need Obsidian 1.13.0 to fix.
 
 The build inlines every runtime asset into `main.js`, because the community installer only downloads `main.js`, `manifest.json` and `styles.css`.

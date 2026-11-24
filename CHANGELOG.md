@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.7 — “take over .pdf” now works, plus the type warnings
+## 1.1.8 — “take over .pdf” now works, plus the type warnings
 
 **The take-over setting had never worked.** It relied on
 `registerExtensions(["pdf"], …)`, but Obsidian's own PDF reader is registered
