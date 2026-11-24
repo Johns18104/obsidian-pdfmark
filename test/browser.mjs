@@ -538,6 +538,119 @@ async function main() {
   });
   report("烧入时便签/文字写成图文而非图标", burnInfo.images >= 2, JSON.stringify(burnInfo));
 
+  // ---------- 3.6 the width slider means "font size" for text and notes ----------
+  const setSlider = async (val) => {
+    await page.evaluate((v) => {
+      const r = document.querySelector(".pdfann-range");
+      r.value = String(v);
+      r.dispatchEvent(new Event("input", { bubbles: true }));
+    }, val);
+    await new Promise((r) => setTimeout(r, 120));
+  };
+  const toolBtn = async (id) => {
+    await page.evaluate((t) => document.querySelector(`.pdfann-tool[data-tool="${t}"]`).click(), id);
+    await new Promise((r) => setTimeout(r, 120));
+  };
+
+  await toolBtn("textbox");
+  const before = await page.evaluate(() => ({
+    shape: window.view.settings.shapeWidth,
+    size: window.view.settings.textSize,
+    label: document.querySelector(".pdfann-width-label").textContent,
+    max: document.querySelector(".pdfann-range").max,
+  }));
+  await setSlider(30);
+  const afterSlide = await page.evaluate(() => ({
+    shape: window.view.settings.shapeWidth,
+    size: window.view.settings.textSize,
+    shown: document.querySelector(".pdfann-width-val").textContent,
+  }));
+  report(
+    "文字工具下拖滑块改的是字号，不是线宽",
+    afterSlide.size === 30 && afterSlide.shape <= 5 && before.label === "字号",
+    JSON.stringify({ before, afterSlide })
+  );
+
+  // A selected text box follows the slider too, and the glyphs really grow.
+  const boxSize = await page.evaluate(async () => {
+    const v = window.view;
+    const id = "size-box";
+    window.store.remove(v.file.path, id);
+    window.store.add(v.file.path, {
+      id,
+      page: 1,
+      type: "textbox",
+      color: "#1f2430",
+      size: 12,
+      pt: { x: 90, y: 300 },
+      w: 200,
+      text: "字号测试 ABC",
+      bg: null,
+      created: Date.now(),
+      updated: Date.now(),
+    });
+    v.paintPage(v.pages[0]);
+    v.selectedId = id;
+    v.updateOptions();
+    const cardOf = (needle) =>
+      Array.from(document.querySelectorAll(".pdfann-textcard")).find((g) => (g.textContent || "").includes(needle));
+    const fs0 = Number(cardOf("字号测试").querySelector("text").getAttribute("font-size"));
+    const r = document.querySelector(".pdfann-range");
+    r.value = "22";
+    r.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((x) => setTimeout(x, 150));
+    const a = v.store.find(v.file.path, id);
+    const fs1 = Number(cardOf("字号测试").querySelector("text").getAttribute("font-size"));
+    return { fs0, fs1, size: a && a.size, shape: v.settings.shapeWidth };
+  });
+  report(
+    "选中的文字批注能改字号（字形真的变大）",
+    boxSize.size === 22 && boxSize.fs1 > boxSize.fs0 * 1.5 && boxSize.shape <= 5,
+    JSON.stringify(boxSize)
+  );
+
+  // Notes had the same defect: the slider never reached the note.
+  await toolBtn("note");
+  const noteLabel = await page.evaluate(() => document.querySelector(".pdfann-width-label").textContent);
+  await setSlider(16);
+  const noteSizes = await page.evaluate(async () => {
+    const v = window.view;
+    v.selectedId = "t-note";
+    v.updateOptions();
+    const r = document.querySelector(".pdfann-range");
+    r.value = "13";
+    r.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((x) => setTimeout(x, 150));
+    const a = v.store.find(v.file.path, "t-note");
+    const noteCard = Array.from(document.querySelectorAll(".pdfann-textcard")).find((g) =>
+      (g.textContent || "").includes("便签正文要能看见")
+    );
+    const card = noteCard ? Array.from(noteCard.querySelectorAll("text")).map((t) => t.getAttribute("font-size")) : [];
+    return { setting: v.settings.noteSize, annot: a && a.size, card, scale: v.scale };
+  });
+  const notePx = Number(noteSizes.card[0] || 0);
+  report(
+    "便签同样能改字号（字号只改这一条，不动默认值）",
+    noteLabel === "字号" &&
+      noteSizes.setting === 16 &&
+      noteSizes.annot === 13 &&
+      Math.abs(notePx - 13 * noteSizes.scale) < 1,
+    JSON.stringify({ noteLabel, noteSizes })
+  );
+
+  // The pen must keep writing the stroke width, not the font size.
+  await toolBtn("pen");
+  await setSlider(4);
+  const penPen = await page.evaluate(() => ({
+    pen: window.view.settings.penWidth,
+    text: window.view.settings.textSize,
+  }));
+  report("画笔滑块仍然只改线宽", penPen.pen === 4 && penPen.text === 30, JSON.stringify(penPen));
+  await page.evaluate(() => {
+    window.view.selectedId = null;
+    window.view.updateOptions();
+  });
+
   // ---------- 13. grab and drag while a creating tool is still armed ----------
   await page.evaluate(() => {
     const v = window.view;

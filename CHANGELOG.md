@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.2 — the font-size slider actually changes the text
+
+- Fixed: with the **Text box** tool the bottom slider was labelled 字号 but wrote the *stroke width* of shapes, so text size never changed. It now stores the text size, on the tool default and on a selected card.
+- Fixed: selecting a text box or a note and dragging the slider did nothing, because the code looked for a `width` field that those annotations do not have.
+- Notes had the same defect and no size setting at all. Notes now carry their own font size, default 11 pt, adjustable 6–48 pt, and burning respects it.
+- The slider scale follows the tool: 6–48 pt in steps of 1 for text and notes, 0.5–30 in steps of 0.5 for pens and shapes.
+- A selection is edited on its own: dragging the slider with a card selected no longer overwrites the default size used for the next one.
+- Notes used to draw their body in the pin colour, so a yellow note had pale yellow text. The body is now always dark; the colour stays on the pin and spine.
+- One slider drag is a single undo step.
+- Regression suite: 32 assertions, including "the slider changes the font size, not the line width" for text, notes and the pen.
+
 ## 1.0.1 — dragging without switching tools
 
 - Any annotation can now be moved while its own tool is still active: a note with the note tool, a text box with the text box tool, a box with the box tool, a pen stroke with the pen. Previously the drag cursor appeared but the press fell through and nothing moved.

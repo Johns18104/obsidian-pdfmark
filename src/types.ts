@@ -63,6 +63,8 @@ export interface NoteAnnot extends BaseAnnot {
   color: string;
   pt: Pt;
   text: string;
+  /** font size in PDF pt; older notes have no value and fall back to the default */
+  size?: number;
 }
 
 export type Annot = TextMark | InkAnnot | ShapeAnnot | NoteAnnot | TextBoxAnnot;
@@ -104,6 +106,7 @@ export interface PluginSettings {
   shapeColor: string;
   shapeWidth: number;
   noteColor: string;
+  noteSize: number;
   textColor: string;
   textSize: number;
   textWidth: number;
@@ -122,6 +125,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   shapeColor: "#f08c1a",
   shapeWidth: 1.6,
   noteColor: "#f2c200",
+  noteSize: 11,
   textColor: "#1f2430",
   textSize: 12,
   textWidth: 220,

@@ -184,6 +184,9 @@ export class PDFView extends ItemView {
   private pageInputTimer: number | null = null;
   private undoStack: string[] = [];
   private redoStack: string[] = [];
+  /** Snapshot taken when a slider drag starts, so the whole drag is one undo step. */
+  private widthBaseline: string | null = null;
+  private widthUndoPushed = false;
   private drag: any = null;
   private scrollTick = 0;
   private lastScrollTop = 0;
@@ -908,7 +911,9 @@ export class PDFView extends ItemView {
     if (a.type === "note" || a.type === "textbox") {
       const isNote = a.type === "note";
       const text = (a as any).text || "";
-      const sizePt = isNote ? 11 : Math.max(6, (a as TextBoxAnnot).size || this.settings.textSize);
+      const sizePt = isNote
+        ? Math.max(6, (a as NoteAnnot).size || this.settings.noteSize)
+        : Math.max(6, (a as TextBoxAnnot).size || this.settings.textSize);
       const wrapPt = isNote ? 210 : Math.max(40, (a as TextBoxAnnot).w || this.settings.textWidth);
       const px = sizePt * s;
       const pad = px * 0.35;
@@ -961,7 +966,9 @@ export class PDFView extends ItemView {
           y: topPx + pad + i * box.lineHeight,
           "font-size": px,
           "font-family": TEXT_FONT,
-          fill: (a as any).color || "#1f2430",
+          // A note's colour belongs to its pin and spine; the body stays dark,
+          // otherwise a yellow note would render pale yellow text on white.
+          fill: isNote ? "#1f2430" : (a as any).color || "#1f2430",
           "dominant-baseline": "text-before-edge",
           "xml:space": "preserve",
         });
@@ -1176,9 +1183,23 @@ export class PDFView extends ItemView {
     const val = wrap.createSpan({ cls: "pdfann-width-val", text: String(this.currentWidth()) });
     range.oninput = () => {
       const v = parseFloat((range as HTMLInputElement).value);
-      val.setText(String(v));
+      const shown = this.isFontSize() ? Math.round(v) : Math.round(v * 10) / 10;
+      val.setText(String(shown));
       this.pickWidth(v);
     };
+    // One slider drag = one undo entry: remember the state when the drag starts.
+    const armUndo = () => {
+      this.widthBaseline = this.snapshot();
+      this.widthUndoPushed = false;
+    };
+    const disarmUndo = () => {
+      this.widthBaseline = null;
+      this.widthUndoPushed = false;
+    };
+    range.addEventListener("pointerdown", armUndo);
+    range.addEventListener("focus", armUndo);
+    range.addEventListener("pointerup", disarmUndo);
+    range.addEventListener("blur", disarmUndo);
     const extra = el.createDiv("pdfann-opts-extra");
     const del = extra.createEl("button", { cls: "pdfann-text-btn", text: "删除所选" });
     del.onclick = () => this.deleteSelected();
@@ -1202,6 +1223,12 @@ export class PDFView extends ItemView {
     }
   }
 
+  /** True when the slider means "font size" rather than "stroke width". */
+  private isFontSize(a?: Annot | null) {
+    const t = a ? a.type : this.tool;
+    return t === "textbox" || t === "note";
+  }
+
   private currentWidth() {
     switch (this.tool) {
       case "pen":
@@ -1210,9 +1237,20 @@ export class PDFView extends ItemView {
         return this.settings.highlighterWidth;
       case "textbox":
         return this.settings.textSize;
+      case "note":
+        return this.settings.noteSize;
       default:
         return this.settings.shapeWidth;
     }
+  }
+
+  /** The slider value that represents the current selection (or tool default). */
+  private widthOf(a: Annot | null): number {
+    if (!a) return this.currentWidth();
+    if (a.type === "textbox") return Math.max(6, (a as TextBoxAnnot).size || this.settings.textSize);
+    if (a.type === "note") return Math.max(6, (a as NoteAnnot).size || this.settings.noteSize);
+    const w = (a as any).width;
+    return typeof w === "number" ? w : this.currentWidth();
   }
 
   private updateOptions() {
@@ -1226,17 +1264,27 @@ export class PDFView extends ItemView {
     this.optsEl.querySelectorAll(".pdfann-swatch").forEach((el) => {
       el.toggleClass("is-active", (el as HTMLElement).dataset.color === color);
     });
+    const selA = this.selectedId ? this.selectedAnnot() : null;
+    const fontSize = this.isFontSize(selA);
     const wl = this.optsEl.querySelector(".pdfann-width-label");
-    if (wl) wl.setText(this.tool === "textbox" ? "字号" : "粗细");
+    if (wl) wl.setText(fontSize ? "字号" : "粗细");
     const showWidth = this.tool !== "select" || !!this.selectedId;
     this.optsEl.toggleClass("pdfann-hide-width", !showWidth);
     const range = this.optsEl.querySelector(".pdfann-range") as HTMLInputElement | null;
     if (range) {
-      const w = this.selectedId ? (this.selectedAnnot() as any)?.width : this.currentWidth();
+      // A font size of 0.5 pt is meaningless, and 12 pt text needs more headroom
+      // than a 2 pt pen stroke, so the scale changes with the current tool.
+      const min = fontSize ? "6" : "0.5";
+      const max = fontSize ? "48" : "30";
+      const step = fontSize ? "1" : "0.5";
+      if (range.min !== min) range.min = min;
+      if (range.max !== max) range.max = max;
+      if (range.step !== step) range.step = step;
+      const w = this.widthOf(selA);
       if (typeof w === "number") {
         range.value = String(w);
         const v = this.optsEl.querySelector(".pdfann-width-val");
-        if (v) v.setText(String(w));
+        if (v) v.setText(String(Math.round(w)));
       }
     }
     const del = this.optsEl.querySelector(".pdfann-opts-extra .pdfann-text-btn");
@@ -1278,22 +1326,58 @@ export class PDFView extends ItemView {
 
   private pickWidth(w: number) {
     const sel = this.selectedAnnot();
-    if (sel && "width" in sel) {
-      this.pushUndo();
-      (sel as any).width = w;
-      this.repaintAll();
+    if (sel) {
+      let changed = false;
+      if (sel.type === "textbox" || sel.type === "note") {
+        const a = sel as TextBoxAnnot | NoteAnnot;
+        const cur = Math.max(6, a.size || (sel.type === "note" ? this.settings.noteSize : this.settings.textSize));
+        if (Math.abs(cur - w) > 0.001) {
+          a.size = w;
+          a.updated = Date.now();
+          changed = true;
+        }
+      } else if ("width" in sel && (sel as any).width !== w) {
+        (sel as any).width = w;
+        changed = true;
+      }
+      if (changed) {
+        // Everything the drag produces collapses into the one snapshot taken
+        // when the slider was grabbed.
+        if (this.widthBaseline) {
+          if (!this.widthUndoPushed) {
+            this.pushSnapshot(this.widthBaseline);
+            this.widthUndoPushed = true;
+          }
+        } else {
+          this.pushUndo();
+        }
+        this.repaintAll();
+        this.renderSidebar();
+        this.scheduleSave();
+      }
     }
-    switch (this.tool) {
-      case "pen":
-        this.settings.penWidth = w;
-        break;
-      case "highlighter":
-        this.settings.highlighterWidth = w;
-        break;
-      default:
-        this.settings.shapeWidth = w;
+    // With something selected the slider edits that annotation only; the tool
+    // defaults are for the next one. Otherwise changing a note would silently
+    // rewrite the size of every note created afterwards.
+    if (!sel) {
+      switch (this.tool) {
+        case "pen":
+          this.settings.penWidth = w;
+          break;
+        case "highlighter":
+          this.settings.highlighterWidth = w;
+          break;
+        case "textbox":
+          this.settings.textSize = w;
+          break;
+        case "note":
+          this.settings.noteSize = w;
+          break;
+        default:
+          this.settings.shapeWidth = w;
+      }
+      this.plugin.saveSettings();
     }
-    this.plugin.saveSettings();
   }
 
   private deleteSelected() {
@@ -2183,6 +2267,7 @@ export class PDFView extends ItemView {
       color: this.settings.noteColor,
       pt: p,
       text,
+      size: this.settings.noteSize,
       created: Date.now(),
       updated: Date.now(),
     };

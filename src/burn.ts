@@ -134,7 +134,7 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
         borderWidth: 0.5,
       });
       const png = await textToPng(n.text || "", {
-        size: 11,
+        size: Math.max(6, n.size || 11),
         width: 210,
         color: "#1f2430",
         background: "rgba(255,255,255,0.92)",
