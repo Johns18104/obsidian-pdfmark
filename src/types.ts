@@ -107,6 +107,10 @@ export interface PluginSettings {
   shapeWidth: number;
   noteColor: string;
   noteSize: number;
+  /** With the pen or highlighter armed, pressing on existing ink drags it
+   *  instead of starting a new stroke. Off by default: continuing a stroke is
+   *  the far more common intention. */
+  penDragInk: boolean;
   textColor: string;
   textSize: number;
   textWidth: number;
@@ -126,6 +130,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   shapeWidth: 1.6,
   noteColor: "#f2c200",
   noteSize: 11,
+  penDragInk: false,
   textColor: "#1f2430",
   textSize: 12,
   textWidth: 220,

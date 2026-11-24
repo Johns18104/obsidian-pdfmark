@@ -1457,7 +1457,11 @@ export class PDFView extends ItemView {
     // of stacking a duplicate on top. Empty space keeps the tool's usual job.
     const grabbed = this.hitAnnotAt(pe, at, this.hitTol(this.grabTolerance(tool)), {
       outline: tool === "line" || tool === "arrow" || tool === "rect" || tool === "ellipse",
-      filter: (a) => this.toolMatches(tool, a),
+      filter: (a) =>
+        this.toolMatches(tool, a) &&
+        // With the pen or highlighter, pressing on existing ink usually means
+        // "continue this stroke". Grabbing it is opt-in (settings toggle).
+        !((tool === "pen" || tool === "highlighter") && a.type === "ink" && !this.settings.penDragInk),
     });
     if (grabbed) {
       if (grabbed.type === "note" || grabbed.type === "textbox") {

@@ -3,6 +3,7 @@ import { PDFView } from "../../src/view";
 import { buildLayout } from "../../src/textlayer";
 import { AnnotStore } from "../../src/store";
 import { DEFAULT_SETTINGS } from "../../src/types";
+import { PdfAnnotatorSettingTab } from "../../src/main";
 import { burnAnnotations } from "../../src/burn";
 import { TFile, WorkspaceLeaf } from "obsidian";
 
@@ -15,6 +16,7 @@ async function boot() {
   const file: any = new TFile(name);
   const plugin: any = {
     data: { settings: { ...DEFAULT_SETTINGS }, files: {}, crops: {} },
+    manifest: { version: "test" },
     assetUrl: () => "",
     persist: async () => {},
   };
@@ -49,6 +51,12 @@ async function boot() {
   (window as any).__buildLayout = buildLayout;
   (window as any).store = plugin.store;
   (window as any).__burn = burnAnnotations;
+  (window as any).openSettings = () => {
+    const tab: any = new PdfAnnotatorSettingTab(plugin);
+    document.getElementById("mount")!.appendChild(tab.containerEl);
+    tab.display();
+    return tab;
+  };
   (window as any).ready = true;
 }
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.3 — ink: keep drawing or grab the stroke?
+
+Set by a new switch, **Drag ink when the pen presses on it**, in the plugin settings.
+
+- **Off (default)** — with the pen or highlighter armed, pressing within 4 pt of an existing stroke starts a new stroke, so you can keep writing across an old line. This is what 1.0.0 did.
+- **On** — the same press grabs the whole stroke and drags it, adding nothing.
+- **Select** always drags ink, whatever the switch says, and the eraser is unaffected.
+- Regression suite: 33 assertions, now covering both positions of the switch.
+
 ## 1.0.2 — the font-size slider actually changes the text
 
 - Fixed: with the **Text box** tool the bottom slider was labelled 字号 but wrote the *stroke width* of shapes, so text size never changed. It now stores the text size, on the tool default and on a selected card.

@@ -133,7 +133,7 @@ export default class PdfAnnotatorPlugin extends Plugin {
   }
 }
 
-class PdfAnnotatorSettingTab extends PluginSettingTab {
+export class PdfAnnotatorSettingTab extends PluginSettingTab {
   plugin: PdfAnnotatorPlugin;
   constructor(plugin: PdfAnnotatorPlugin) {
     super(plugin.app, plugin);
@@ -177,6 +177,20 @@ class PdfAnnotatorSettingTab extends PluginSettingTab {
       .addToggle((t) =>
         t.setValue(this.plugin.settings.defaultFitWidth).onChange(async (v) => {
           this.plugin.settings.defaultFitWidth = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("画笔按住已有笔迹时拖动它")
+      .setDesc(
+        "关闭（默认）：用画笔或荧光笔在已有笔迹上起笔，继续画在新的一笔里，和手写习惯一致。" +
+          "开启：按在离已有笔迹 4px 以内会拖动整条笔迹，不会新增笔画；想接着画就从空白处起笔。" +
+          "「选中」工具下任何情况下都能拖笔迹。"
+      )
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.penDragInk).onChange(async (v) => {
+          this.plugin.settings.penDragInk = v;
           await this.plugin.saveSettings();
         })
       );

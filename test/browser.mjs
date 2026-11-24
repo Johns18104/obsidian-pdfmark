@@ -776,36 +776,69 @@ async function main() {
     JSON.stringify({ before: rectDrag.p0, after: rectAfter.p0, count: rectDrag.n + "->" + rectAfter.n })
   );
 
-  // ink: press on the stroke itself with the pen armed
-  const inkDrag = await page.evaluate((c) => {
-    const v = window.view;
-    const now = Date.now();
-    const strokes = [[{ x: c.x - 80, y: c.y - 120 }, { x: c.x - 20, y: c.y - 120 }, { x: c.x + 60, y: c.y - 120 }]];
-    v.store.add(v.file.path, {
-      id: "drag-ink", page: 1, type: "ink", color: "#e03131", width: 4, opacity: 1,
-      strokes, created: now, updated: now,
-    });
-    v.paintPage(v.pages[0]);
-    return { first: { ...strokes[0][0] }, n: v.store.annotsOf(v.file.path, 1).filter((x) => x.type === "ink").length };
-  }, mid);
-  await dragBy({ x: inkDrag.first.x + 40, y: inkDrag.first.y }, "pen", 50, 45);
-  const inkAfter = await page.evaluate(() => {
-    const v = window.view;
-    const list = v.store.annotsOf(v.file.path, 1);
-    const a = list.find((x) => x.id === "drag-ink");
-    return { first: { ...a.strokes[0][0] }, n: list.filter((x) => x.type === "ink").length };
-  });
+  // ink with the pen armed — the toggle decides between "keep drawing" (default)
+  // and "drag the stroke you pressed on".
+  const seedInk = async (id, dy) =>
+    page.evaluate(
+      (c, name, off) => {
+        const v = window.view;
+        const now = Date.now();
+        window.store.remove(v.file.path, name);
+        const strokes = [[{ x: c.x - 80, y: c.y + off }, { x: c.x - 20, y: c.y + off }, { x: c.x + 60, y: c.y + off }]];
+        v.store.add(v.file.path, {
+          id: name, page: 1, type: "ink", color: "#e03131", width: 4, opacity: 1,
+          strokes, created: now, updated: now,
+        });
+        v.paintPage(v.pages[0]);
+        return {
+          first: { ...strokes[0][0] },
+          n: v.store.annotsOf(v.file.path, 1).filter((x) => x.type === "ink").length,
+        };
+      },
+      mid,
+      id,
+      dy
+    );
+  const readInk = async (id) =>
+    page.evaluate((name) => {
+      const v = window.view;
+      const list = v.store.annotsOf(v.file.path, 1);
+      const a = list.find((x) => x.id === name);
+      return { first: a ? { ...a.strokes[0][0] } : null, n: list.filter((x) => x.type === "ink").length };
+    }, id);
+
+  // default = off: the press starts a new stroke, the old one stays put
+  const inkOff = await seedInk("drag-ink", -120);
+  await dragBy({ x: inkOff.first.x + 40, y: inkOff.first.y }, "pen", 50, 45);
+  const inkOffAfter = await readInk("drag-ink");
   report(
-    "手写：工具仍选中时按在已有笔迹上可直接拖走（不会多画一笔）",
-    Math.abs(inkAfter.first.x - inkDrag.first.x) > 5 && inkAfter.n === inkDrag.n,
-    JSON.stringify({ before: inkDrag.first, after: inkAfter.first, count: inkDrag.n + "->" + inkAfter.n })
+    "画笔默认（开关关闭）：按在已有笔迹上继续起笔，不拖走原来的",
+    inkOffAfter.first &&
+      Math.abs(inkOffAfter.first.x - inkOff.first.x) < 1 &&
+      inkOffAfter.n === inkOff.n + 1,
+    JSON.stringify({ before: inkOff.first, after: inkOffAfter.first, count: inkOff.n + "->" + inkOffAfter.n })
+  );
+
+  // switch it on: the same gesture now moves the stroke and adds nothing
+  const inkOn = await seedInk("drag-ink2", -170);
+  await page.evaluate(() => {
+    window.view.settings.penDragInk = true;
+  });
+  await dragBy({ x: inkOn.first.x + 40, y: inkOn.first.y }, "pen", 50, 45);
+  const inkOnAfter = await readInk("drag-ink2");
+  report(
+    "打开开关后：按在已有笔迹上直接拖走，不多画一笔",
+    inkOnAfter.first &&
+      Math.abs(inkOnAfter.first.x - inkOn.first.x) > 5 &&
+      inkOnAfter.n === inkOn.n,
+    JSON.stringify({ before: inkOn.first, after: inkOnAfter.first, count: inkOn.n + "->" + inkOnAfter.n })
   );
 
   // ink in select mode
   await page.evaluate(() => document.querySelector('.pdfann-tool[data-tool="select"]').click());
   const selInkBefore = await page.evaluate(() => {
     const v = window.view;
-    const a = v.store.annotsOf(v.file.path, 1).find((x) => x.id === "drag-ink");
+    const a = v.store.annotsOf(v.file.path, 1).find((x) => x.id === "drag-ink2");
     return { ...a.strokes[0][0] };
   });
   const selPress = await pointFor(selInkBefore);

@@ -59,7 +59,7 @@ PDFmark does **not** take over `.pdf` by default. Open a PDF with it through the
 8. Top bar: page number box, page count, zoom, fit width, night mode, crop margins. Right sidebar: annotations and outline.
 9. **More (⋯)** — export to Markdown, copy a citation for the current page, burn annotations into the PDF, clear annotations.
 
-**Moving things does not require switching tools.** Whatever tool is active, press an annotation of that same kind and drag it: a note with the note tool, a box with the box tool, a pen stroke with the pen. Only the outline of a rectangle or ellipse grabs with a drawing tool, so you can still draw a new box *inside* an old one. With **Select** armed, anything you can move — including ink — moves, and dragging empty space selects text. Text marks are the exception on purpose: they are tied to the words they mark and stay put. The cursor turns into a four-way arrow wherever a drag will work.
+**Moving things does not require switching tools.** Whatever tool is active, press an annotation of that same kind and drag it: a note with the note tool, a box with the box tool. Ink is the one place where this is a choice, because pressing on a stroke usually means "continue writing": with the pen or highlighter, a press inside 4 px of existing ink starts a new stroke — switch on **Drag ink when the pen presses on it** in the settings if you would rather move the old stroke, and note that **Select** always moves it. Only the outline of a rectangle or ellipse grabs with a drawing tool, so you can still draw a new box *inside* an old one. With **Select** armed, anything you can move — including ink — moves, and dragging empty space selects text. Text marks are the exception on purpose: they are tied to the words they mark and stay put. The cursor turns into a four-way arrow wherever a drag will work.
 
 Shortcuts: `Ctrl/Cmd+Z` undo, `Ctrl/Cmd+Shift+Z` redo, `Esc` close the floating menu.
 
@@ -181,7 +181,7 @@ The build inlines every runtime asset into `main.js`, because the community inst
 7. 顶栏：页码输入、总页数、缩放、适宽、夜间反色、裁白边。右侧：批注列表与 PDF 目录。
 8. **更多（⋯）**：导出 Markdown、复制当前页引用、烧入 PDF、清除批注。
 
-**移动标注不用切换工具**：当前是什么工具，就按住同类标注直接拖——便签工具拖便签、方框工具拖方框、画笔工具按在已有笔迹上就能拖走。用图形工具时只有**边框**能命中，框内仍然可以继续画新的框；用「选中」时任何能移动的东西（包括手写）都能拖，空白处拖动仍然是划词。高亮 / 下划线 / 删除线是唯一不参与拖动的类型——它们绑在所标的文字上。鼠标移到能拖的位置会变成四向箭头。
+**移动标注不用切换工具**：当前是什么工具，就按住同类标注直接拖——便签工具拖便签、方框工具拖方框。只有手写笔迹需要你自己定规矩：按在笔迹边上起笔，通常是想接着写，所以画笔 / 荧光笔默认**继续起笔**；想让它们按住已有笔迹就拖动，去设置里打开「画笔按住已有笔迹时拖动它」，而「选中」工具任何时候都能拖。用图形工具时只有**边框**能命中，框内仍然可以继续画新的框；用「选中」时任何能移动的东西（包括手写）都能拖，空白处拖动仍然是划词。高亮 / 下划线 / 删除线是唯一不参与拖动的类型——它们绑在所标的文字上。鼠标移到能拖的位置会变成四向箭头。
 
 ### 数据在哪
 

@@ -106,8 +106,100 @@ export class Modal {
 }
 
 export class Plugin {}
-export class PluginSettingTab {}
-export class Setting {}
+
+/** Minimal settings UI so the real settings tab can be rendered in tests. */
+export class PluginSettingTab {
+  app: any;
+  plugin: any;
+  containerEl: HTMLElement;
+  constructor(app?: any, plugin?: any) {
+    this.app = app;
+    this.plugin = plugin;
+    this.containerEl = document.createElement("div");
+    this.containerEl.className = "vertical-tab-content";
+  }
+}
+
+export class Setting {
+  settingEl: HTMLElement;
+  nameEl: HTMLElement;
+  descEl: HTMLElement;
+  controlEl: HTMLElement;
+  constructor(containerEl: HTMLElement) {
+    this.settingEl = document.createElement("div");
+    this.settingEl.className = "setting-item";
+    this.nameEl = document.createElement("div");
+    this.nameEl.className = "setting-item-name";
+    this.descEl = document.createElement("div");
+    this.descEl.className = "setting-item-description";
+    this.controlEl = document.createElement("div");
+    this.controlEl.className = "setting-item-control";
+    this.settingEl.append(this.nameEl, this.descEl, this.controlEl);
+    containerEl.appendChild(this.settingEl);
+  }
+  setName(v: string) {
+    this.nameEl.textContent = v;
+    return this;
+  }
+  setDesc(v: string) {
+    this.descEl.textContent = v;
+    return this;
+  }
+  setHeading() {
+    this.settingEl.classList.add("setting-item-heading");
+    return this;
+  }
+  addToggle(cb: (t: any) => void) {
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    let value = false;
+    const handlers: Array<(v: boolean) => void> = [];
+    const toggle = {
+      setValue(v: boolean) {
+        value = v;
+        input.checked = v;
+        return toggle;
+      },
+      onChange(fn: (v: boolean) => void) {
+        handlers.push(fn);
+        return toggle;
+      },
+      getValue: () => value,
+    };
+    input.addEventListener("change", () => {
+      value = input.checked;
+      handlers.forEach((fn) => fn(value));
+    });
+    this.controlEl.appendChild(input);
+    cb(toggle);
+    return this;
+  }
+  addButton(cb: (b: any) => void) {
+    const el = document.createElement("button");
+    let onClick: (() => void) | null = null;
+    const btn = {
+      setButtonText(t: string) {
+        el.textContent = t;
+        return btn;
+      },
+      setWarning() {
+        el.classList.add("mod-warning");
+        return btn;
+      },
+      setCta() {
+        return btn;
+      },
+      onClick(fn: () => void) {
+        onClick = fn;
+        return btn;
+      },
+    };
+    el.addEventListener("click", () => onClick && onClick());
+    this.controlEl.appendChild(el);
+    cb(btn);
+    return this;
+  }
+}
 export function normalizePath(p: string) {
   return p;
 }
