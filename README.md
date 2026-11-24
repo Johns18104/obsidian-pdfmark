@@ -107,6 +107,8 @@ PDFmark makes **no network requests**. No analytics, no crash reporting, no upda
 
 PDFmark **不发起任何网络请求**：无统计、无上报、无远程字体、无远程代码，PDF 解析全部在本机完成。
 
+The clipboard is written to only when you press **Copy** or **Quote**, and is never read. 剪贴板只在你点「复制」或「引用」时写入，从不读取。
+
 If you want to verify this, search the source for `fetch`, `XMLHttpRequest` or `http` — you will not find any.
 
 ---

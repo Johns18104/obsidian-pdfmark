@@ -69,6 +69,66 @@ fs.writeFileSync(
     ";\n"
 );
 
+// ---------------------------------------------------------------------------
+// 3. Remove the parts of pdf.js that the community directory's automated
+//    review flags as "code that can run dynamic code": a <script> injector,
+//    a new Function("") feature probe, and the Node-only eval("require") path.
+//
+//    None of them can be reached in PDFmark, because the worker, the CMap
+//    tables and the standard fonts are all inlined and handed to pdf.js as
+//    in-memory data. Removing them is therefore behaviour-preserving — and
+//    it is not cosmetic: an unreachable <script> tag is still an error that
+//    blocks installation from inside Obsidian.
+// ---------------------------------------------------------------------------
+const stripPdfjsDynamicCode = {
+  name: "pdfjs-strip-dynamic-code",
+  setup(build) {
+    build.onLoad({ filter: /pdfjs-dist[\\/]legacy[\\/]build[\\/]pdf\.js$/ }, async (args) => {
+      let src = await fs.promises.readFile(args.path, "utf8");
+
+      // loadScript(): appends a <script src> to the document to pull in a
+      // worker or a CMap table from a URL. Inlined here, so it never runs.
+      src = src.replace(
+        /function loadScript\(src\) \{[\s\S]*?\n\}/,
+        "function loadScript(src) {\n" +
+          "  return Promise.reject(new Error(`PDFmark inlines its worker and fonts; refusing to load ${src}.`));\n" +
+          "}"
+      );
+
+      // isEvalSupported(): probe for new Function(""), used only to choose a
+      // faster glyph compiler. Reporting false is a documented fallback.
+      src = src.replace(
+        /function isEvalSupported\(\) \{[\s\S]*?\n\}/,
+        "function isEvalSupported() {\n  return false;\n}"
+      );
+
+      // eval("require") is the Node branch that loads the worker from disk.
+      src = src.replace(
+        'eval("require")(this.workerSrc)',
+        '(() => { throw new Error("PDFmark runs its worker from the inlined bundle."); })()'
+      );
+
+      // getPathGenerator() compiles glyph outlines to a function body and
+      // instantiates it when eval is available. The isEvalSupported check above
+      // now reports false, so this branch is already dead; forcing the
+      // condition to false lets the minifier drop the new Function call itself,
+      // which keeps it out of the reach of a static scan. The interpreter on the
+      // next line does the same work and is pdf.js's own fallback.
+      src = src.replace(
+        "if (this.isEvalSupported && _util.FeatureTest.isEvalSupported) {",
+        "if (false) {"
+      );
+
+      for (const needle of ['createElement("script")', 'new Function("")', 'eval("require")', "eval("]) {
+        if (src.includes(needle)) {
+          throw new Error("pdfjs patch missed \"" + needle + "\" - pdfjs-dist was probably upgraded");
+        }
+      }
+      return { contents: src, loader: "js" };
+    });
+  },
+};
+
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const repoUrl = (pkg.repository && pkg.repository.url ? pkg.repository.url : "").replace(/\.git$/, "");
 const banner =
@@ -96,6 +156,7 @@ const options = {
   legalComments: "eof",
   banner: { js: banner },
   define: { "process.env.NODE_ENV": JSON.stringify("production") },
+  plugins: [stripPdfjsDynamicCode],
 };
 
 if (watch) {

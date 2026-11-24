@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.1.4 — installable from the community directory
+
+The directory's automated review returned one **error** and three recommendations.
+The error came from code bundled out of pdf.js rather than from PDFmark's own
+source, but an error blocks installation from inside Obsidian, so it had to go.
+
+- **Removed three dynamic-code paths that pdf.js ships.** `loadScript()` appended a
+  `<script>` tag to fetch a worker or CMap table from a URL, `isEvalSupported()`
+  probed `new Function("")`, and the Node branch called `eval("require")`. PDFmark
+  inlines the worker, the CMap tables and the standard fonts and hands them to
+  pdf.js as in-memory data, so none of the three could ever run. `build.mjs` now
+  rewrites them out of the bundle, and the build fails loudly if a future
+  pdfjs-dist upgrade moves them somewhere else.
+- Glyph outlines are compiled by pdf.js's own interpreter instead of `new Function`.
+  Identical output; the interpreter is pdf.js's documented fallback.
+- No visible change on screen or in the burned PDF. The 46-assertion suite passes,
+  and the Chinese text-layer probe still resolves 89 CJK characters from a CMap-only
+  PDF with no external request.
+- Two review recommendations are left as they are on purpose: the clipboard is only
+  written to when you press copy or quote (never read), and `localStorage` is read
+  once to detect the Obsidian interface language, not to store anything.
+
 ## 1.1.3 — the note dialog is no longer covered, and one click makes one note
 
 - **Fixed: the 确定/取消 buttons of the 批注 dialog were hidden behind the floating text menu.** That menu was pinned at `z-index: 1000`, above Obsidian's modal layer, so it painted over the dialog. It now closes the moment you pick 批注 (nothing you picked is lost — the rects, text and colour are already captured), and its `z-index` moved to `var(--layer-popover)`, below dialogs in general.
