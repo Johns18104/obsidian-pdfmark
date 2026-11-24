@@ -1,14 +1,5 @@
 import { PDFDocument, rgb, LineCapStyle, BlendMode } from "pdf-lib";
-import {
-  Annot,
-  InkAnnot,
-  NoteAnnot,
-  ShapeAnnot,
-  TEXT_RULE_WIDTH,
-  TextBoxAnnot,
-  TextMark,
-  hexToRgb01,
-} from "./types";
+import { Annot, TEXT_RULE_WIDTH, hexToRgb01 } from "./types";
 import { textToPng } from "./richtext";
 import { arrowHead } from "./arrow";
 
@@ -31,7 +22,7 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
     const { height: pageH } = page.getSize();
 
     if (a.type === "highlight") {
-      const m = a as TextMark;
+      const m = a;
       for (const r of m.rects) {
         page.drawRectangle({
           x: r.x,
@@ -44,7 +35,7 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
         });
       }
     } else if (a.type === "underline" || a.type === "strike") {
-      const m = a as TextMark;
+      const m = a;
       for (const r of m.rects) {
         // Underline rides the bottom edge of the text box; the strike splits it.
         const y = m.type === "underline" ? r.y : r.y + r.h / 2;
@@ -57,7 +48,7 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
         });
       }
     } else if (a.type === "ink") {
-      const ink = a as InkAnnot;
+      const ink = a;
       const thickness = Math.max(0.5, ink.width);
       for (const stroke of ink.strokes) {
         if (stroke.length === 1) {
@@ -82,7 +73,7 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
         }
       }
     } else if (a.type === "rect") {
-      const s = a as ShapeAnnot;
+      const s = a;
       const x = Math.min(s.p0.x, s.p1.x);
       const y = Math.min(s.p0.y, s.p1.y);
       page.drawRectangle({
@@ -94,7 +85,7 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
         borderWidth: Math.max(0.5, s.width),
       });
     } else if (a.type === "ellipse") {
-      const s = a as ShapeAnnot;
+      const s = a;
       const cx = (s.p0.x + s.p1.x) / 2;
       const cy = (s.p0.y + s.p1.y) / 2;
       page.drawEllipse({
@@ -106,7 +97,7 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
         borderWidth: Math.max(0.5, s.width),
       });
     } else if (a.type === "line" || a.type === "arrow") {
-      const s = a as ShapeAnnot;
+      const s = a;
       const th = Math.max(0.5, s.width);
       const head = a.type === "arrow" ? arrowHead(s.p0, s.p1, th) : null;
       const end = head ? head.shaftEnd : s.p1;
@@ -132,7 +123,7 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
     } else if (a.type === "note") {
       // The body of a note is drawn on the page as real text, not as a sticky
       // note icon: readers that ignore /Text annotations still see it.
-      const n = a as NoteAnnot;
+      const n = a;
       const size = 16;
       const x = Math.min(n.pt.x, page.getSize().width - size);
       page.drawRectangle({
@@ -156,7 +147,7 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
         page.drawImage(img, { x: x + size, y: n.pt.y - png.h, width: png.w, height: png.h });
       }
     } else if (a.type === "textbox") {
-      const t = a as TextBoxAnnot;
+      const t = a;
       const png = await textToPng(t.text || "", {
         size: Math.max(6, t.size),
         width: Math.max(40, t.w),

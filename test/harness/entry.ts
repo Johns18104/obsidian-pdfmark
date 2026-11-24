@@ -7,7 +7,7 @@ import { PdfAnnotatorSettingTab } from "../../src/main";
 import { resolveLang, setLanguage } from "../../src/i18n";
 import { buildMarkdown } from "../../src/exporter";
 import { burnAnnotations } from "../../src/burn";
-import { TFile, WorkspaceLeaf } from "obsidian";
+import { setUiLanguage, TFile, WorkspaceLeaf } from "obsidian";
 
 async function boot() {
   const q = new URLSearchParams(location.search);
@@ -23,8 +23,10 @@ async function boot() {
     persist: async () => {},
   };
   plugin.settings = plugin.data.settings;
-  // Tests pin the language instead of guessing from navigator.language.
+  // Tests pin both the plugin setting and the fake "app language" so "auto"
+  // is deterministic whatever the headless browser reports.
   plugin.settings.language = (q.get("lang") as any) || "zh";
+  setUiLanguage(q.get("uilang") || (plugin.settings.language === "en" ? "en-US" : "zh-CN"));
   setLanguage(plugin.settings.language);
   plugin.store = new AnnotStore(plugin);
 
@@ -58,6 +60,7 @@ async function boot() {
   (window as any).__burn = burnAnnotations;
   (window as any).__buildMarkdown = buildMarkdown;
   (window as any).__resolveLang = resolveLang;
+  (window as any).__setUiLanguage = setUiLanguage;
   (window as any).setLang = (l: "zh" | "en" | "auto") => {
     plugin.settings.language = l;
     setLanguage(l);

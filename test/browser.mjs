@@ -1142,24 +1142,17 @@ async function main() {
   );
 
   const auto = await page.evaluate(() => {
-    const keep = localStorage.getItem("language");
-    const probe = (v) => {
-      if (v === null) localStorage.removeItem("language");
-      else localStorage.setItem("language", v);
-      return window.__resolveLang("auto");
-    };
+    // "跟随系统" 现在读 Obsidian 的 getLanguage()，测试里用替身函数模拟
+    const probe = (tag) => (window.__setUiLanguage(tag), window.__resolveLang("auto"));
     const out = {
-      zhCN: probe("zh"),
+      zhCN: probe("zh-CN"),
       zhTW: probe("zh-TW"),
-      en: probe("en"),
+      en: probe("en-GB"),
+      // 明确的设置项永远压过系统语言
+      forcedEnWhileSystemZh: (window.__setUiLanguage("zh-CN"), window.__resolveLang("en")),
+      forcedZhWhileSystemEn: (window.__setUiLanguage("en-GB"), window.__resolveLang("zh")),
     };
-    if (keep === null) localStorage.removeItem("language");
-    else localStorage.setItem("language", keep);
-    // 明确的设置项永远压过系统语言
-    out.forcedEnWhileSystemZh = (localStorage.setItem("language", "zh"), window.__resolveLang("en"));
-    out.forcedZhWhileSystemEn = (localStorage.setItem("language", "en"), window.__resolveLang("zh"));
-    if (keep === null) localStorage.removeItem("language");
-    else localStorage.setItem("language", keep);
+    window.__setUiLanguage("zh-CN");
     return out;
   });
   report(

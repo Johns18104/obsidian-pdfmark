@@ -1,5 +1,5 @@
 import { TFile } from "obsidian";
-import { Annot, InkAnnot, NoteAnnot, ShapeAnnot, TextMark } from "./types";
+import { Annot, ShapeAnnot } from "./types";
 import { t, tf } from "./i18n";
 
 /** Resolved at export time, not at module load, so the language setting applies. */
@@ -30,7 +30,7 @@ export function buildMarkdown(file: TFile, annots: Annot[], _title: string): str
   const byPage = new Map<number, Annot[]>();
   for (const a of annots) {
     if (!byPage.has(a.page)) byPage.set(a.page, []);
-    byPage.get(a.page)!.push(a);
+    byPage.get(a.page).push(a);
   }
   const pages = Array.from(byPage.keys()).sort((a, b) => a - b);
   const link = (n: number) => `[[${file.name}#page=${n}|${tf("第 {0} 页", "page {0}", n)}]]`;
@@ -49,12 +49,12 @@ export function buildMarkdown(file: TFile, annots: Annot[], _title: string): str
   lines.push("");
 
   for (const p of pages) {
-    const list = byPage.get(p)!;
+    const list = byPage.get(p);
     lines.push(`## ${tf("第 {0} 页", "Page {0}", p)}`);
     lines.push("");
     for (const a of list) {
       if (a.type === "highlight" || a.type === "underline" || a.type === "strike") {
-        const m = a as TextMark;
+        const m = a;
         const text = (m.text || "").trim();
         const body = text.replace(/\n/g, "\n> ");
         lines.push(`> ${body}`);
@@ -69,7 +69,7 @@ export function buildMarkdown(file: TFile, annots: Annot[], _title: string): str
         const head = a.type === "note" ? typeLabel("note") : typeLabel("textbox");
         lines.push(`- **${head}**: ${(n.text || "").replace(/\n/g, " ")} · ${link(p)}`);
       } else if (a.type === "ink") {
-        const ink = a as InkAnnot;
+        const ink = a;
         const n = ink.strokes.reduce((s, st) => s + st.length, 0);
         lines.push(`- ${tf("手写笔迹（{0} 笔 / {1} 点）", "Ink ({0} strokes / {1} points)", ink.strokes.length, n)} · ${link(p)}`);
       } else {

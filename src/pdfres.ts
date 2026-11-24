@@ -38,7 +38,7 @@ export class MemoryCMapReaderFactory {
 
   async fetch({ name }: { name: string }) {
     if (!name) throw new Error("CMap name must be specified.");
-    const data = (CMAP_DATA as Record<string, string>)[name];
+    const data = (CMAP_DATA)[name];
     if (!data) throw new Error("Unable to load built-in CMap: " + name);
     return { cMapData: decode(data, "cmap:" + name), compressionType: BINARY };
   }
@@ -53,7 +53,7 @@ export class MemoryStandardFontDataFactory {
 
   async fetch({ filename }: { filename: string }) {
     if (!filename) throw new Error("Font filename must be specified.");
-    const data = (FONT_DATA as Record<string, string>)[filename];
+    const data = (FONT_DATA)[filename];
     if (!data) throw new Error("Unable to load built-in font data: " + filename);
     return decode(data, "font:" + filename);
   }

@@ -233,3 +233,12 @@ export class Setting {
 export function normalizePath(p: string) {
   return p;
 }
+
+/** Stand-in for Obsidian's getLanguage(): the harness sets it from ?lang=. */
+let uiLanguage = "en-US";
+export function setUiLanguage(tag: string) {
+  uiLanguage = tag;
+}
+export function getLanguage(): string {
+  return uiLanguage;
+}

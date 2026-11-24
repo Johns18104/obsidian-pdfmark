@@ -97,7 +97,7 @@ function configureWorker(plugin: any) {
   let fileUrl = "";
   try {
     fileUrl = plugin && plugin.assetUrl ? plugin.assetUrl("pdf.worker.min.js") : "";
-  } catch (e) {}
+  } catch { /* ignore */ }
   pdfjsLib.GlobalWorkerOptions.workerSrc = fileUrl || WORKER_URL;
 }
 
@@ -158,7 +158,7 @@ const TOOLS: ToolDef[] = [
 function setToolIcon(host: HTMLElement, icon: string, fallback: string) {
   try {
     setIcon(host, icon);
-  } catch (e) {}
+  } catch { /* ignore */ }
   if (!host.childElementCount) host.setText(fallback);
 }
 
@@ -262,13 +262,13 @@ export class PDFView extends ItemView {
     this.flushSave();
     try {
       await this.store.flush();
-    } catch (e) {}
+    } catch { /* ignore */ }
     this.destroyPages();
     this.removePopup();
     if (this.pdfDoc) {
       try {
         this.pdfDoc.destroy();
-      } catch (e) {}
+      } catch { /* ignore */ }
       this.pdfDoc = null;
     }
   }
@@ -560,7 +560,7 @@ export class PDFView extends ItemView {
       if (pe.task) {
         try {
           pe.task.cancel();
-        } catch (e) {}
+        } catch { /* ignore */ }
       }
     }
     this.pages = [];
@@ -709,7 +709,7 @@ export class PDFView extends ItemView {
       if (pe.task) {
         try {
           pe.task.cancel();
-        } catch (e) {}
+        } catch { /* ignore */ }
       }
       pe.rendered = false;
       pe.rendering = false;
@@ -842,7 +842,7 @@ export class PDFView extends ItemView {
       pe.inkCtx.restore();
     }
     if (!pe.viewport) return;
-    if (!vectorOnly) for (const a of annots) if (a.type === "ink") this.drawInk(pe, a as InkAnnot);
+    if (!vectorOnly) for (const a of annots) if (a.type === "ink") this.drawInk(pe, a);
     for (const a of annots) if (a.type !== "ink") this.drawVector(pe, a);
   }
 
@@ -907,7 +907,7 @@ export class PDFView extends ItemView {
     pe.svg.appendChild(g);
 
     if (a.type === "highlight" || a.type === "underline" || a.type === "strike") {
-      const mark = a as TextMark;
+      const mark = a;
       for (const r of mark.rects) {
         const sr = this.screenRect(pe, r);
         if (mark.type === "highlight") {
@@ -948,9 +948,9 @@ export class PDFView extends ItemView {
       const isNote = a.type === "note";
       const text = (a as any).text || "";
       const sizePt = isNote
-        ? Math.max(6, (a as NoteAnnot).size || this.settings.noteSize)
-        : Math.max(6, (a as TextBoxAnnot).size || this.settings.textSize);
-      const wrapPt = isNote ? 210 : Math.max(40, (a as TextBoxAnnot).w || this.settings.textWidth);
+        ? Math.max(6, (a).size || this.settings.noteSize)
+        : Math.max(6, (a).size || this.settings.textSize);
+      const wrapPt = isNote ? 210 : Math.max(40, (a).w || this.settings.textWidth);
       const px = sizePt * s;
       const pad = px * 0.35;
       const box = layoutText(text, px, wrapPt * s);
@@ -960,7 +960,7 @@ export class PDFView extends ItemView {
       let xPx: number;
       let topPx: number;
       if (isNote) {
-        const p = vpPt(vp, (a as NoteAnnot).pt.x, (a as NoteAnnot).pt.y);
+        const p = vpPt(vp, (a).pt.x, (a).pt.y);
         const pin = 16;
         const pinRect = this.svgEl("rect", {
           x: p.x - 2,
@@ -977,7 +977,7 @@ export class PDFView extends ItemView {
         xPx = p.x + pin;
         topPx = p.y - pin + 2;
       } else {
-        const p = vpPt(vp, (a as TextBoxAnnot).pt.x, (a as TextBoxAnnot).pt.y);
+        const p = vpPt(vp, (a).pt.x, (a).pt.y);
         xPx = p.x;
         topPx = p.y;
       }
@@ -1033,9 +1033,9 @@ export class PDFView extends ItemView {
         ev.stopPropagation();
         // The eraser removes on the first press; do not reopen a dead card.
         if (this.tool === "eraser") return;
-        if (!this.store.annotsOf(this.file!.path, pe.num).some((x) => x.id === a.id)) return;
-        if (isNote) this.editNote(a as NoteAnnot);
-        else this.editTextBox(a as TextBoxAnnot);
+        if (!this.store.annotsOf(this.file.path, pe.num).some((x) => x.id === a.id)) return;
+        if (isNote) this.editNote(a);
+        else this.editTextBox(a);
       });
       g.appendChild(gg);
       return;
@@ -1224,10 +1224,10 @@ export class PDFView extends ItemView {
     range.min = rMin;
     range.max = rMax;
     range.step = rStep;
-    (range as HTMLInputElement).value = String(this.currentWidth());
+    (range).value = String(this.currentWidth());
     const val = wrap.createSpan({ cls: "pdfann-width-val", text: String(this.currentWidth()) });
     range.oninput = () => {
-      const v = parseFloat((range as HTMLInputElement).value);
+      const v = parseFloat((range).value);
       const shown = this.isFontSize() ? Math.round(v) : Math.round(v * 10) / 10;
       val.setText(String(shown));
       this.pickWidth(v);
@@ -1309,8 +1309,8 @@ export class PDFView extends ItemView {
   /** The slider value that represents the current selection (or tool default). */
   private widthOf(a: Annot | null): number {
     if (!a) return this.currentWidth();
-    if (a.type === "textbox") return Math.max(6, (a as TextBoxAnnot).size || this.settings.textSize);
-    if (a.type === "note") return Math.max(6, (a as NoteAnnot).size || this.settings.noteSize);
+    if (a.type === "textbox") return Math.max(6, (a).size || this.settings.textSize);
+    if (a.type === "note") return Math.max(6, (a).size || this.settings.noteSize);
     const w = (a as any).width;
     return typeof w === "number" ? w : this.currentWidth();
   }
@@ -1410,7 +1410,7 @@ export class PDFView extends ItemView {
     if (sel) {
       let changed = false;
       if (sel.type === "textbox" || sel.type === "note") {
-        const a = sel as TextBoxAnnot | NoteAnnot;
+        const a = sel;
         const cur = Math.max(6, a.size || (sel.type === "note" ? this.settings.noteSize : this.settings.textSize));
         if (Math.abs(cur - w) > 0.001) {
           a.size = w;
@@ -1516,7 +1516,7 @@ export class PDFView extends ItemView {
       });
       if (grabbed) {
         if (grabbed.type === "note" || grabbed.type === "textbox") {
-          this.onTextDown(pe, grabbed as NoteAnnot | TextBoxAnnot, ev);
+          this.onTextDown(pe, grabbed, ev);
         } else if (grabbed.type === "ink") {
           this.startTranslate(pe, grabbed, ev);
         } else {
@@ -1546,7 +1546,7 @@ export class PDFView extends ItemView {
     });
     if (grabbed) {
       if (grabbed.type === "note" || grabbed.type === "textbox") {
-        this.onTextDown(pe, grabbed as NoteAnnot | TextBoxAnnot, ev);
+        this.onTextDown(pe, grabbed, ev);
       } else if (grabbed.type === "ink") {
         this.startTranslate(pe, grabbed, ev);
       } else {
@@ -1625,7 +1625,7 @@ export class PDFView extends ItemView {
   private hitsPoint(a: Annot, p: Pt, tol: number, outline: boolean): boolean {
     switch (a.type) {
       case "ink": {
-        const ink = a as InkAnnot;
+        const ink = a;
         const w = Math.max(tol, (ink.width || 2) / 2);
         return ink.strokes.some((s) => {
           if (s.length === 1) return Math.hypot(s[0].x - p.x, s[0].y - p.y) < w;
@@ -1635,12 +1635,12 @@ export class PDFView extends ItemView {
       }
       case "line":
       case "arrow": {
-        const sh = a as ShapeAnnot;
+        const sh = a;
         return distToSegment(p, sh.p0, sh.p1) < Math.max(tol, sh.width || 1) * 1.4;
       }
       case "rect":
       case "ellipse": {
-        const sh = a as ShapeAnnot;
+        const sh = a;
         const bb = rectFromPoints(sh.p0, sh.p1);
         if (!outline) {
           return (
@@ -1665,15 +1665,15 @@ export class PDFView extends ItemView {
         return Math.abs(Math.sqrt(v) - 1) * Math.min(rx, ry) < t;
       }
       case "note": {
-        const b = this.noteBox(a as NoteAnnot);
+        const b = this.noteBox(a);
         return p.x >= b.x - tol && p.x <= b.x + b.w + tol && p.y >= b.y - tol && p.y <= b.y + b.h + tol;
       }
       case "textbox": {
-        const b = this.textBoxBox(a as TextBoxAnnot);
+        const b = this.textBoxBox(a);
         return p.x >= b.x - tol && p.x <= b.x + b.w + tol && p.y >= b.y - tol && p.y <= b.y + b.h + tol;
       }
       default: {
-        const m = a as TextMark;
+        const m = a;
         return m.rects.some(
           (r) => p.x >= r.x - tol && p.x <= r.x + r.w + tol && p.y >= r.y - tol && p.y <= r.y + r.h + tol
         );
@@ -1844,13 +1844,13 @@ export class PDFView extends ItemView {
         layer.removeEventListener("pointercancel", end);
         try {
           layer.releasePointerCapture(ev.pointerId);
-        } catch (err) {}
+        } catch { /* ignore */ }
         if (e.type === "pointercancel") resolve(last);
         else resolve({ x: e.clientX, y: e.clientY });
       };
       try {
         layer.setPointerCapture(ev.pointerId);
-      } catch (err) {}
+      } catch { /* ignore */ }
       layer.addEventListener("pointermove", mv);
       layer.addEventListener("pointerup", end);
       layer.addEventListener("pointercancel", end);
@@ -1894,7 +1894,7 @@ export class PDFView extends ItemView {
         created: Date.now(),
         updated: Date.now(),
       };
-      this.store.add(this.file!.path, a);
+      this.store.add(this.file.path, a);
       this.paintPage(pe);
       this.renderSidebar();
       this.scheduleSave();
@@ -1934,7 +1934,7 @@ export class PDFView extends ItemView {
         created: Date.now(),
         updated: Date.now(),
       };
-      this.store.add(this.file!.path, a);
+      this.store.add(this.file.path, a);
       this.paintPage(pe);
       this.renderSidebar();
       this.scheduleSave();
@@ -1960,7 +1960,7 @@ export class PDFView extends ItemView {
       this.clearSelectionPreview();
     };
     mk(t("引用", "Cite")).onclick = () => {
-      const link = `[[${this.file!.name}#page=${page}|${this.pageLabel(page)}]]`;
+      const link = `[[${this.file.name}#page=${page}|${this.pageLabel(page)}]]`;
       navigator.clipboard.writeText(`「${text}」（${link}）`);
       new Notice(t("已复制引用", "Citation copied"));
       this.removePopup();
@@ -2046,7 +2046,7 @@ export class PDFView extends ItemView {
       layer.removeEventListener("pointercancel", finish);
       try {
         layer.releasePointerCapture(ev.pointerId);
-      } catch (err) {}
+      } catch { /* ignore */ }
       if (pts.length < 1) return;
       this.pushUndo();
       const a: InkAnnot = {
@@ -2060,14 +2060,14 @@ export class PDFView extends ItemView {
         created: Date.now(),
         updated: Date.now(),
       };
-      this.store.add(this.file!.path, a);
+      this.store.add(this.file.path, a);
       this.paintPage(pe);
       this.renderSidebar();
       this.scheduleSave();
     };
     try {
       layer.setPointerCapture(ev.pointerId);
-    } catch (err) {}
+    } catch { /* ignore */ }
     layer.addEventListener("pointermove", onMove);
     layer.addEventListener("pointerup", finish);
     layer.addEventListener("pointercancel", finish);
@@ -2079,7 +2079,7 @@ export class PDFView extends ItemView {
 
     const hitTest = (p: Pt): Annot[] => {
       const tol = this.hitTol(9);
-      return this.store.annotsOf(this.file!.path, pe.num).filter((a) => this.hitsPoint(a, p, tol, false));
+      return this.store.annotsOf(this.file.path, pe.num).filter((a) => this.hitsPoint(a, p, tol, false));
     };
 
     const eraseAt = (e: PointerEvent) => {
@@ -2091,7 +2091,7 @@ export class PDFView extends ItemView {
         undoPushed = true;
       }
       for (const a of hits) {
-        this.store.remove(this.file!.path, a.id);
+        this.store.remove(this.file.path, a.id);
         if (this.selectedId === a.id) this.selectedId = null;
       }
       this.paintPage(pe);
@@ -2110,12 +2110,12 @@ export class PDFView extends ItemView {
       layer.removeEventListener("pointercancel", finish);
       try {
         layer.releasePointerCapture(ev.pointerId);
-      } catch (err) {}
+      } catch { /* ignore */ }
       if (undoPushed) this.updateOptions();
     };
     try {
       layer.setPointerCapture(ev.pointerId);
-    } catch (err) {}
+    } catch { /* ignore */ }
     layer.addEventListener("pointermove", onMove);
     layer.addEventListener("pointerup", finish);
     layer.addEventListener("pointercancel", finish);
@@ -2179,7 +2179,7 @@ export class PDFView extends ItemView {
       layer.removeEventListener("pointercancel", finish);
       try {
         layer.releasePointerCapture(ev.pointerId);
-      } catch (err) {}
+      } catch { /* ignore */ }
       preview.remove();
       const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
       if (dist * this.scale < 6) return;
@@ -2195,7 +2195,7 @@ export class PDFView extends ItemView {
         created: Date.now(),
         updated: Date.now(),
       };
-      this.store.add(this.file!.path, a);
+      this.store.add(this.file.path, a);
       this.setTool("select");
       this.selectedId = a.id;
       this.paintPage(pe);
@@ -2205,7 +2205,7 @@ export class PDFView extends ItemView {
     };
     try {
       layer.setPointerCapture(ev.pointerId);
-    } catch (err) {}
+    } catch { /* ignore */ }
     layer.addEventListener("pointermove", update);
     layer.addEventListener("pointerup", finish);
     layer.addEventListener("pointercancel", finish);
@@ -2248,14 +2248,14 @@ export class PDFView extends ItemView {
       layer.removeEventListener("pointercancel", finish);
       try {
         layer.releasePointerCapture(ev.pointerId);
-      } catch (err) {}
+      } catch { /* ignore */ }
       this.pushSnapshot(before);
       this.scheduleSave();
       this.renderSidebar();
     };
     try {
       layer.setPointerCapture(ev.pointerId);
-    } catch (err) {}
+    } catch { /* ignore */ }
     layer.addEventListener("pointermove", onMove);
     layer.addEventListener("pointerup", finish);
     layer.addEventListener("pointercancel", finish);
@@ -2289,7 +2289,7 @@ export class PDFView extends ItemView {
       layer.removeEventListener("pointercancel", finish);
       try {
         layer.releasePointerCapture(ev.pointerId);
-      } catch (err) {}
+      } catch { /* ignore */ }
       if (!moved) return;
       this.pushSnapshot(before);
       this.selectedId = a.id;
@@ -2300,7 +2300,7 @@ export class PDFView extends ItemView {
     };
     try {
       layer.setPointerCapture(ev.pointerId);
-    } catch (err) {}
+    } catch { /* ignore */ }
     layer.addEventListener("pointermove", onMove);
     layer.addEventListener("pointerup", finish);
     layer.addEventListener("pointercancel", finish);
@@ -2308,11 +2308,11 @@ export class PDFView extends ItemView {
 
   private cloneGeom(a: Annot): any {
     if (a.type === "ink") {
-      return (a as InkAnnot).strokes.map((s) => s.map((q) => ({ x: q.x, y: q.y })));
+      return (a).strokes.map((s) => s.map((q) => ({ x: q.x, y: q.y })));
     }
     if (a.type === "note" || a.type === "textbox") return { pt: { ...(a as NoteAnnot).pt } };
     if (a.type === "line" || a.type === "rect" || a.type === "ellipse" || a.type === "arrow") {
-      const sh = a as ShapeAnnot;
+      const sh = a;
       return { p0: { ...sh.p0 }, p1: { ...sh.p1 } };
     }
     return null;
@@ -2321,7 +2321,7 @@ export class PDFView extends ItemView {
   private translateFrom(a: Annot, orig: any, dx: number, dy: number) {
     if (!orig) return;
     if (a.type === "ink") {
-      (a as InkAnnot).strokes = orig.map((s: Pt[]) => s.map((q) => ({ x: q.x + dx, y: q.y + dy })));
+      (a).strokes = orig.map((s: Pt[]) => s.map((q) => ({ x: q.x + dx, y: q.y + dy })));
     } else if (a.type === "note" || a.type === "textbox") {
       (a as NoteAnnot).pt = { x: orig.pt.x + dx, y: orig.pt.y + dy };
     } else if (orig.p0) {
@@ -2345,8 +2345,8 @@ export class PDFView extends ItemView {
           const page = await this.pdfDoc.getPage(idx);
           const vp = page.getViewport({ scale: 1 });
           const items = await getTextItems(page);
-          this.store.setCrop(this.file!.path, idx, contentBox(items, vp.width, vp.height));
-        } catch (e) {}
+          this.store.setCrop(this.file.path, idx, contentBox(items, vp.width, vp.height));
+        } catch { /* ignore */ }
       }
     };
     await Promise.all(Array.from({ length: Math.min(6, n) }, worker));
@@ -2372,7 +2372,7 @@ export class PDFView extends ItemView {
       created: Date.now(),
       updated: Date.now(),
     };
-    this.store.add(this.file!.path, a);
+    this.store.add(this.file.path, a);
     this.paintPage(pe);
     this.renderSidebar();
     this.scheduleSave();
@@ -2383,7 +2383,7 @@ export class PDFView extends ItemView {
     if (text === null) return;
     this.pushUndo();
     if (!text.trim()) {
-      this.store.remove(this.file!.path, n.id);
+      this.store.remove(this.file.path, n.id);
     } else {
       n.text = text;
       n.updated = Date.now();
@@ -2415,7 +2415,7 @@ export class PDFView extends ItemView {
       created: Date.now(),
       updated: Date.now(),
     };
-    this.store.add(this.file!.path, a);
+    this.store.add(this.file.path, a);
     this.paintPage(pe);
     this.renderSidebar();
     this.scheduleSave();
@@ -2426,7 +2426,7 @@ export class PDFView extends ItemView {
     if (text === null) return;
     this.pushUndo();
     if (!text.trim()) {
-      this.store.remove(this.file!.path, a.id);
+      this.store.remove(this.file.path, a.id);
       this.selectedId = null;
     } else {
       a.text = text;
@@ -2463,21 +2463,21 @@ export class PDFView extends ItemView {
       layer.removeEventListener("pointercancel", finish);
       try {
         layer.releasePointerCapture(ev.pointerId);
-      } catch (err) {}
+      } catch { /* ignore */ }
       if (moved) {
         this.pushSnapshot(before);
         this.scheduleSave();
         this.renderSidebar();
         this.paintPage(pe);
       } else if (a.type === "note") {
-        this.editNote(a as NoteAnnot);
+        this.editNote(a);
       } else {
-        this.editTextBox(a as TextBoxAnnot);
+        this.editTextBox(a);
       }
     };
     try {
       layer.setPointerCapture(ev.pointerId);
-    } catch (err) {}
+    } catch { /* ignore */ }
     layer.addEventListener("pointermove", onMove);
     layer.addEventListener("pointerup", finish);
     layer.addEventListener("pointercancel", finish);
@@ -2504,7 +2504,7 @@ export class PDFView extends ItemView {
     if (!this.file) return;
     try {
       this.store.replaceAnnots(this.file.path, JSON.parse(s));
-    } catch (e) {}
+    } catch { /* ignore */ }
     this.selectedId = null;
     this.repaintAll();
     this.renderSidebar();
@@ -2517,7 +2517,7 @@ export class PDFView extends ItemView {
       return;
     }
     this.redoStack.push(this.snapshot());
-    this.applySnapshot(this.undoStack.pop() as string);
+    this.applySnapshot(this.undoStack.pop());
   }
 
   redo() {
@@ -2526,7 +2526,7 @@ export class PDFView extends ItemView {
       return;
     }
     this.undoStack.push(this.snapshot());
-    this.applySnapshot(this.redoStack.pop() as string);
+    this.applySnapshot(this.redoStack.pop());
   }
 
   // ---------------------------------------------------------------- persistence
@@ -2622,7 +2622,7 @@ export class PDFView extends ItemView {
           arrow: t("箭头", "Arrow"),
           note: t("便签", "Note"),
           textbox: t("文字", "Text"),
-        }[a.type] as string;
+        }[a.type];
         const textEl = main.createDiv("pdfann-annot-text");
         textEl.setText(
           a.type === "ink"
@@ -2632,7 +2632,7 @@ export class PDFView extends ItemView {
             : (a as TextMark).text || label
         );
         if ((a as TextMark).note) {
-          main.createDiv({ cls: "pdfann-annot-note", text: (a as TextMark).note as string });
+          main.createDiv({ cls: "pdfann-annot-note", text: (a as TextMark).note });
         }
         main.createDiv({ cls: "pdfann-annot-meta", text: label });
         const del = item.createEl("button", { cls: "pdfann-annot-del" });
@@ -2640,7 +2640,7 @@ export class PDFView extends ItemView {
         del.onclick = (ev: MouseEvent) => {
           ev.stopPropagation();
           this.pushUndo();
-          this.store.remove(this.file!.path, a.id);
+          this.store.remove(this.file.path, a.id);
           this.repaintAll();
           this.renderSidebar();
           this.scheduleSave();
@@ -2707,7 +2707,7 @@ export class PDFView extends ItemView {
       const y1 = Math.max(...rs.map((v) => v.y + v.h));
       r = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
     } else if (a.type === "note") {
-      const p = vpPt(pe.viewport, (a as NoteAnnot).pt.x, (a as NoteAnnot).pt.y);
+      const p = vpPt(pe.viewport, (a).pt.x, (a).pt.y);
       r = { x: p.x - 14, y: p.y - 32, w: 32, h: 32 };
     } else if ("strokes" in (a as any)) {
       const pts = (a as InkAnnot).strokes.reduce((acc, cur) => acc.concat(cur), [] as { x: number; y: number }[]);

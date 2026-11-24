@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.1.5 — clears the remaining review error
+
+The 1.1.4 scan still reported one **error** and a handful of warnings. All of them
+are addressed here; nothing a user sees has changed.
+
+- **Error — "Don't detach leaves in onunload".** The plugin called
+  `detachLeavesOfType()` while shutting down, which resets a PDF leaf to its
+  default location even after the user deliberately moved it. Obsidian already
+  tears the view down on disable, so the call was removed.
+- **Warning — `localStorage` for the UI language.** "Follow system" now asks
+  Obsidian itself via `getLanguage()`, so the plugin no longer touches web
+  storage at all and matches the app language exactly (including `zh-TW`).
+- **Warning — unnecessary type assertions (48 `as` casts and 16 `!`).** The
+  project compiles without `strictNullChecks`, where those assertions changed
+  nothing; the discriminator on `annot.type` already narrows every annotation.
+  Removed, and the imports that only existed for them were dropped.
+- **Warning — empty block statements (23).** Bare `catch {}` blocks became
+  `catch { /* ignore */ }`, which is what they always meant.
+
+Still open on purpose: the clipboard is written to when you press copy or quote
+and never read; and the `any`-related warnings that come from Obsidian's own
+loosely typed API surface.
+
 ## 1.1.4 — installable from the community directory
 
 The directory's automated review returned one **error** and three recommendations.

@@ -5,20 +5,24 @@
  * Obsidian UI language, then the browser.
  */
 
+import { getLanguage } from "obsidian";
+
 export type LangSetting = "auto" | "zh" | "en";
 export type Lang = "zh" | "en";
 
 let current: Lang = "zh";
 
 function fromSystem(): Lang {
-  // Obsidian writes the chosen UI language to localStorage; when it is missing
-  // (fresh install, tests) fall back to the browser.
+  // getLanguage() is what Obsidian itself uses, so "auto" matches the app UI
+  // exactly; navigator.language is only a fallback for older API versions.
+  let tag = "";
   try {
-    const stored = window.localStorage.getItem("language");
-    if (stored) return stored.toLowerCase().startsWith("zh") ? "zh" : "en";
-  } catch (e) {}
-  const nav = (typeof navigator !== "undefined" && navigator.language) || "en";
-  return nav.toLowerCase().startsWith("zh") ? "zh" : "en";
+    tag = getLanguage() || "";
+  } catch (e) {
+    /* very old Obsidian: fall through to the browser tag */
+  }
+  if (!tag) tag = (typeof navigator !== "undefined" && navigator.language) || "en";
+  return tag.toLowerCase().startsWith("zh") ? "zh" : "en";
 }
 
 export function resolveLang(setting: LangSetting | undefined): Lang {

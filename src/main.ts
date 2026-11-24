@@ -102,7 +102,9 @@ export default class PdfAnnotatorPlugin extends Plugin {
 
   onunload() {
     if (this.store) this.store.flush();
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_PDF);
+    // Deliberately no detachLeavesOfType() here: Obsidian tears the view down
+    // itself on disable, and detaching would send the leaf back to its default
+    // location even when the user had moved it somewhere deliberate.
   }
 
   async persist() {
@@ -128,7 +130,7 @@ export default class PdfAnnotatorPlugin extends Plugin {
         const url = adapter.getResourcePath(p);
         if (url) return url;
       }
-    } catch (e) {}
+    } catch { /* ignore */ }
     return "";
   }
 
