@@ -1,8 +1,8 @@
 {
   "id": "pdfmark",
   "name": "PDFmark",
-  "version": "1.1.5",
-  "minAppVersion": "1.5.0",
+  "version": "1.1.6",
+  "minAppVersion": "1.8.7",
   "description": "Read and annotate PDFs: highlight, underline and strike out text, draw freehand ink, add lines, boxes, ellipses, arrows and notes. Remembers the last page, exports annotations to Markdown, and can burn them into the PDF.",
   "author": "Jiaosen",
   "authorUrl": "https://github.com/Johns18104",

@@ -17,7 +17,7 @@ export async function getTextItems(page: any): Promise<TextItemBox[]> {
   let tc: any;
   try {
     tc = await page.getTextContent();
-  } catch (e) {
+  } catch {
     return out;
   }
   const items = (tc && tc.items) || [];
@@ -223,7 +223,7 @@ function measureWidths(str: string, family: string, size: number): number[] | nu
     if (widthCache.size > 3000) widthCache.clear();
     widthCache.set(key, ok);
     return ok;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -326,7 +326,7 @@ export function wordRange(layout: TextLayout, index: number): [number, number] {
   const cell = layout.cells[index];
   if (!cell) return [index, index];
   const line = layout.lines[cell.line];
-  const wordy = !isSpace(cell.ch) && !/[，。、；：！？,.;:!?()\[\]{}《》「」“”"'—…]/.test(cell.ch);
+  const wordy = !isSpace(cell.ch) && !/[，。、；：！？,.;:!?()\u005b\u005d{}《》「」“”"'—…]/.test(cell.ch);
   let s = index;
   let e = index;
   if (wordy) {
@@ -334,7 +334,7 @@ export function wordRange(layout: TextLayout, index: number): [number, number] {
       s > line.start &&
       layout.cells[s - 1].item === cell.item &&
       !isSpace(layout.cells[s - 1].ch) &&
-      !/[，。、；：！？,.;:!?()\[\]{}《》「」“”"'—…]/.test(layout.cells[s - 1].ch)
+      !/[，。、；：！？,.;:!?()\u005b\u005d{}《》「」“”"'—…]/.test(layout.cells[s - 1].ch)
     ) {
       s--;
     }
@@ -342,7 +342,7 @@ export function wordRange(layout: TextLayout, index: number): [number, number] {
       e + 1 < line.end &&
       layout.cells[e + 1].item === cell.item &&
       !isSpace(layout.cells[e + 1].ch) &&
-      !/[，。、；：！？,.;:!?()\[\]{}《》「」“”"'—…]/.test(layout.cells[e + 1].ch)
+      !/[，。、；：！？,.;:!?()\u005b\u005d{}《》「」“”"'—…]/.test(layout.cells[e + 1].ch)
     ) {
       e++;
     }

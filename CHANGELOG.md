@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.1.6 — the API-version error, and the linter that should have caught it
+
+1.1.5 traded one warning for a new **error**: it started calling `getLanguage()`,
+which only exists from Obsidian 1.8.7, while `minAppVersion` still said 1.5.0.
+The directory rejects a plugin that uses APIs newer than the version it declares.
+
+- **`minAppVersion` is now 1.8.7**, the version that actually contains
+  `getLanguage()`. `versions.json` records the change, so anyone below 1.8.7 is
+  offered 1.1.4 instead of a build that cannot run.
+- **The same checks now run locally.** `npm run lint` uses
+  `eslint-plugin-obsidianmd` — the exact rule set behind the directory review —
+  with `minAppVersion` fed in, so an unsupported API shows up before publishing
+  rather than after.
+- **Warnings cleared along the way:**
+  - `document.createElement` → `createEl` / `createDiv` / `createSvg`, and
+    `document` → `activeDocument`, so the plugin also behaves inside popout
+    windows (all four helpers exist since 0.15.0 or earlier).
+  - `requestAnimationFrame` → `window.requestAnimationFrame`.
+  - 42 floating promises are now explicitly marked `void`, which is what they
+    always were: fire-and-forget follow-up work.
+  - Dead variables and an unused import removed; the punctuation character class
+    writes `[` and `]` as `\u005b\u005d` (the linter's suggestion to drop the
+    backslash would have ended the class early and changed the expression).
+  - `activeLeaf` → `getActiveViewOfType(ItemView)`, which is not deprecated and
+    answers the same question.
+- **Still open, on purpose:** `ButtonComponent.setWarning()` is deprecated in
+  favour of `setDestructive()`, but that one needs Obsidian 1.13.0, so using it
+  now would recreate the same error. The `any`-family warnings (about 300) come
+  from Obsidian's loosely typed API surface and are warnings, not errors.
+
 ## 1.1.5 — clears the remaining review error
 
 The 1.1.4 scan still reported one **error** and a handful of warnings. All of them

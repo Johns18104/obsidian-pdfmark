@@ -72,3 +72,26 @@ proto.appendText = function (t: string) {
   this.appendChild(document.createTextNode(t));
   return this;
 };
+
+// Obsidian also exposes detached-element helpers and the "active" window as
+// globals. The plugin uses them for offscreen canvases and SVG groups.
+(globalThis as any).createEl = function (tag: string, opts?: Opts | string) {
+  const el = document.createElement(tag);
+  applyOpts(el, opts);
+  return el;
+};
+(globalThis as any).createDiv = function (opts?: Opts | string) {
+  const el = document.createElement("div");
+  applyOpts(el, opts);
+  return el;
+};
+(globalThis as any).createSpan = function (opts?: Opts | string) {
+  const el = document.createElement("span");
+  applyOpts(el, opts);
+  return el;
+};
+(globalThis as any).createSvg = function (tag: string) {
+  return document.createElementNS("http://www.w3.org/2000/svg", tag);
+};
+(globalThis as any).activeDocument = document;
+(globalThis as any).activeWindow = window;

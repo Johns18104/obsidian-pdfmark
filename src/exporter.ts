@@ -1,5 +1,5 @@
 import { TFile } from "obsidian";
-import { Annot, ShapeAnnot } from "./types";
+import { Annot } from "./types";
 import { t, tf } from "./i18n";
 
 /** Resolved at export time, not at module load, so the language setting applies. */
@@ -73,7 +73,6 @@ export function buildMarkdown(file: TFile, annots: Annot[], _title: string): str
         const n = ink.strokes.reduce((s, st) => s + st.length, 0);
         lines.push(`- ${tf("手写笔迹（{0} 笔 / {1} 点）", "Ink ({0} strokes / {1} points)", ink.strokes.length, n)} · ${link(p)}`);
       } else {
-        const s = a as ShapeAnnot;
         lines.push(`- ${tf("{0}标注", "{0} shape", typeLabel(a.type))} · ${link(p)}`);
       }
     }

@@ -19,7 +19,6 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
   for (const a of annots) {
     const page = pages[a.page - 1];
     if (!page) continue;
-    const { height: pageH } = page.getSize();
 
     if (a.type === "highlight") {
       const m = a;

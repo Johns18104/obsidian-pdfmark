@@ -17,9 +17,9 @@ let measureCtx: CanvasRenderingContext2D | null = null;
 function ctxFor(size: number): CanvasRenderingContext2D | null {
   if (!measureCtx) {
     try {
-      const c = document.createElement("canvas");
+      const c = createEl("canvas");
       measureCtx = c.getContext("2d");
-    } catch (e) {
+    } catch {
       measureCtx = null;
     }
   }
@@ -154,7 +154,7 @@ export async function textToPng(text: string, opts: RasterOptions): Promise<Rast
   const wPt = Math.min(wrapPt, box.width) + padPt * 2;
   const hPt = box.height + padPt * 2;
 
-  const canvas = document.createElement("canvas");
+  const canvas = createEl("canvas");
   canvas.width = Math.max(2, Math.round(wPt * scale));
   canvas.height = Math.max(2, Math.round(hPt * scale));
   const ctx = canvas.getContext("2d");

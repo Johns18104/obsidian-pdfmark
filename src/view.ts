@@ -312,7 +312,7 @@ export class PDFView extends ItemView {
     this.registerDomEvent(window, "resize", () => {
       if (this.settings.defaultFitWidth) this.fitWidth();
     });
-    this.registerDomEvent(document, "keydown", (ev: KeyboardEvent) => this.onKey(ev));
+    this.registerDomEvent(activeDocument, "keydown", (ev: KeyboardEvent) => this.onKey(ev));
     this.sideEl.toggleClass("is-hidden", !this.settings.sidebarOpen);
   }
 
@@ -357,7 +357,7 @@ export class PDFView extends ItemView {
     const fit = zoom.createEl("button", { cls: "pdfann-text-btn", text: t("适宽", "Fit") });
     fit.onclick = () => this.fitWidth();
 
-    const sp = bar.createDiv("pdfann-spacer");
+    bar.createDiv("pdfann-spacer");
 
     const night = bar.createEl("button", { cls: "pdfann-icon-btn" + (this.settings.nightMode ? " is-on" : ""), attr: { "aria-label": t("夜间反色", "Night mode") } });
     setIcon(night, "moon");
@@ -452,7 +452,7 @@ export class PDFView extends ItemView {
     if (lockBtn) lockBtn.toggleClass("is-on", this.selectLock);
     this.buildOptions();
     this.emptyEl.setText(t("右键一个 PDF 文件 →「用 PDFmark 打开」", "Right-click a PDF → “Open with PDFmark”"));
-    if (this.file) this.renderSidebar();
+    if (this.file) void this.renderSidebar();
     // Page canvases only carry artwork; repaint so hit-area titles follow suit.
     for (const pe of this.pages) if (pe.viewport) this.paintPage(pe);
   }
@@ -505,13 +505,13 @@ export class PDFView extends ItemView {
     this.scale = this.computeFitScale();
     this.buildPages();
     this.applyNight();
-    this.renderSidebar();
+    void this.renderSidebar();
     this.showProgress("");
     if (this.emptyEl) this.emptyEl.addClass("is-hidden");
     this.syncPageInput();
 
     const target = Math.min(Math.max(rec.lastPage || 1, 1), this.numPages);
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       this.goPage(target, false);
       if (rec.scrollRatio > 0 && target === rec.lastPage) {
         const pe = this.pages[target - 1];
@@ -533,7 +533,7 @@ export class PDFView extends ItemView {
           const p = await this.pdfDoc.getPage(i);
           const vp = p.getViewport({ scale: 1 });
           out[i - 1] = { w: vp.width, h: vp.height, rot: p.rotate || 0 };
-        } catch (e) {
+        } catch {
           out[i - 1] = { w: 595, h: 842, rot: 0 };
         }
       }
@@ -577,7 +577,7 @@ export class PDFView extends ItemView {
       const canvas = inner.createEl("canvas", { cls: "pdfann-canvas" });
       const ink = inner.createEl("canvas", { cls: "pdfann-ink" });
       const draw = inner.createDiv("pdfann-draw");
-      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      const svg = createSvg("svg");
       svg.classList.add("pdfann-svg");
       inner.appendChild(svg);
 
@@ -612,7 +612,7 @@ export class PDFView extends ItemView {
               const el = en.target as HTMLElement;
               const n = parseInt(el.dataset.page || "0", 10);
               const pe = this.pages[n - 1];
-              if (pe) this.renderPage(pe);
+              if (pe) void this.renderPage(pe);
             }
           }
         },
@@ -696,7 +696,7 @@ export class PDFView extends ItemView {
     this.buildPages();
     this.applyNight();
     this.updateZoomLabel();
-    if (anchor) requestAnimationFrame(() => this.restoreAnchor(anchor));
+    if (anchor) window.requestAnimationFrame(() => this.restoreAnchor(anchor));
   }
 
   setScale(s: number) {
@@ -717,11 +717,11 @@ export class PDFView extends ItemView {
       this.layoutPage(pe);
     }
     this.updateZoomLabel();
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       this.restoreAnchor(anchor);
       for (const pe of this.pages) {
         const r = pe.frame.getBoundingClientRect();
-        if (r.bottom > -600 && r.top < window.innerHeight + 600) this.renderPage(pe);
+        if (r.bottom > -600 && r.top < window.innerHeight + 600) void this.renderPage(pe);
       }
     });
   }
@@ -769,7 +769,7 @@ export class PDFView extends ItemView {
       if (a.page !== this.currentPage) {
         this.currentPage = a.page;
         this.syncPageInput();
-        if (this.sideTab === "annots") this.renderSidebar();
+        if (this.sideTab === "annots") void this.renderSidebar();
       }
       this.scheduleSave();
     });
@@ -783,11 +783,11 @@ export class PDFView extends ItemView {
     this.currentPage = page;
     this.syncPageInput();
     if (save) this.scheduleSave();
-    this.renderPage(pe);
+    void this.renderPage(pe);
   }
 
   private syncPageInput() {
-    if (this.pageInput && document.activeElement !== this.pageInput) {
+    if (this.pageInput && activeDocument.activeElement !== this.pageInput) {
       this.pageInput.value = String(this.currentPage);
     }
   }
@@ -895,7 +895,7 @@ export class PDFView extends ItemView {
   }
 
   private svgEl(tag: string, attrs: Record<string, string | number>) {
-    const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    const el = createSvg(tag as keyof SVGElementTagNameMap);
     for (const k in attrs) el.setAttribute(k, String(attrs[k]));
     return el;
   }
@@ -1027,15 +1027,15 @@ export class PDFView extends ItemView {
       gg.addEventListener("pointerdown", (ev: PointerEvent) => {
         if (!this.canGrab(a)) return;
         ev.stopPropagation();
-        this.onTextDown(pe, a as any, ev);
+        this.onTextDown(pe, a, ev);
       });
       gg.addEventListener("dblclick", (ev: MouseEvent) => {
         ev.stopPropagation();
         // The eraser removes on the first press; do not reopen a dead card.
         if (this.tool === "eraser") return;
         if (!this.store.annotsOf(this.file.path, pe.num).some((x) => x.id === a.id)) return;
-        if (isNote) this.editNote(a);
-        else this.editTextBox(a);
+        if (isNote) void this.editNote(a);
+        else void this.editTextBox(a);
       });
       g.appendChild(gg);
       return;
@@ -1053,7 +1053,6 @@ export class PDFView extends ItemView {
       "stroke-linejoin": "round",
     };
 
-    let el: SVGElement | null = null;
     if (sh.type === "line" || sh.type === "arrow") {
       const head = sh.type === "arrow" ? arrowHead(p0, p1, w) : null;
       const shaftEnd = head ? head.shaftEnd : p1;
@@ -1069,7 +1068,6 @@ export class PDFView extends ItemView {
         y2: shaftEnd.y,
       });
       g.appendChild(line);
-      el = line;
       if (head) {
         g.appendChild(
           this.svgEl("polygon", {
@@ -1085,7 +1083,6 @@ export class PDFView extends ItemView {
       const r = this.normRect(p0, p1);
       const rect = this.svgEl("rect", { ...common, x: r.x, y: r.y, width: r.w, height: r.h, rx: 1 });
       g.appendChild(rect);
-      el = rect;
     } else {
       const r = this.normRect(p0, p1);
       const ellipse = this.svgEl("ellipse", {
@@ -1096,7 +1093,6 @@ export class PDFView extends ItemView {
         ry: Math.max(1, r.h / 2),
       });
       g.appendChild(ellipse);
-      el = ellipse;
     }
 
     const hit = this.svgEl(sh.type === "line" || sh.type === "arrow" ? "line" : "rect", {
@@ -1112,7 +1108,7 @@ export class PDFView extends ItemView {
       style:
         sh.type === "line" || sh.type === "arrow" ? "pointer-events:stroke" : "pointer-events:fill",
       class: "pdfann-hit",
-    } as any);
+    });
     hit.addEventListener("pointerdown", (ev: PointerEvent) => {
       if (!this.canGrab(sh)) return;
       // With a drawing tool armed, only the outline counts: otherwise a new box
@@ -1162,7 +1158,7 @@ export class PDFView extends ItemView {
         });
         h.addEventListener("pointerdown", (ev: PointerEvent) => {
           ev.stopPropagation();
-          this.onShapeDown(pe, sh, ev, id as any);
+          this.onShapeDown(pe, sh, ev, id);
         });
         g.appendChild(h);
       }
@@ -1340,7 +1336,7 @@ export class PDFView extends ItemView {
     if (wl) wl.setText(fontSize ? t("字号", "Size") : t("粗细", "Width"));
     const showWidth = this.tool !== "select" || !!this.selectedId;
     this.optsEl.toggleClass("pdfann-hide-width", !showWidth);
-    const range = this.optsEl.querySelector(".pdfann-range") as HTMLInputElement | null;
+    const range = this.optsEl.querySelector<HTMLInputElement>(".pdfann-range");
     if (range) {
       // A font size of 0.5 pt is meaningless, and 12 pt text needs more headroom
       // than a 2 pt pen stroke, so the scale changes with the current tool.
@@ -1370,7 +1366,7 @@ export class PDFView extends ItemView {
       this.pushUndo();
       (sel as any).color = c;
       this.repaintAll();
-      this.renderSidebar();
+      void this.renderSidebar();
     }
     switch (this.tool) {
       case "pen":
@@ -1433,7 +1429,7 @@ export class PDFView extends ItemView {
           this.pushUndo();
         }
         this.repaintAll();
-        this.renderSidebar();
+        void this.renderSidebar();
         this.scheduleSave();
       }
     }
@@ -1467,7 +1463,7 @@ export class PDFView extends ItemView {
     this.store.remove(this.file.path, this.selectedId);
     this.selectedId = null;
     this.repaintAll();
-    this.renderSidebar();
+    void this.renderSidebar();
     this.scheduleSave();
   }
 
@@ -1492,7 +1488,7 @@ export class PDFView extends ItemView {
   private onPointerDown(pe: PageEl, ev: PointerEvent) {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
     if (!pe.viewport) {
-      this.renderPage(pe);
+      void this.renderPage(pe);
       return;
     }
     this.removePopup();
@@ -1529,7 +1525,7 @@ export class PDFView extends ItemView {
         this.updateOptions();
         this.paintPage(pe);
       }
-      this.startSelect(pe, ev);
+      void this.startSelect(pe, ev);
       return;
     }
 
@@ -1556,11 +1552,11 @@ export class PDFView extends ItemView {
     }
 
     if (tool === "note") {
-      this.createNote(pe, ev);
+      void this.createNote(pe, ev);
       return;
     }
     if (tool === "textbox") {
-      this.createTextBox(pe, ev);
+      void this.createTextBox(pe, ev);
       return;
     }
     if (tool === "pen" || tool === "highlighter") {
@@ -1749,7 +1745,7 @@ export class PDFView extends ItemView {
     try {
       const items = await this.getItems(pe);
       layout = pe.layout = buildLayout(items);
-    } catch (e) {
+    } catch {
       layout = pe.layout = buildLayout([]);
     }
 
@@ -1799,8 +1795,7 @@ export class PDFView extends ItemView {
   private paintSelection(pe: PageEl, rects: PRect[]) {
     if (!this.selPreviewEl || this.selPreviewEl.parentElement !== pe.inner) {
       this.clearSelectionPreview();
-      const el = document.createElement("div");
-      el.className = "pdfann-selpreview";
+      const el = createDiv("pdfann-selpreview");
       pe.inner.appendChild(el);
       this.selPreviewEl = el;
     }
@@ -1808,8 +1803,7 @@ export class PDFView extends ItemView {
     el.textContent = "";
     for (const rr of rects) {
       const sr = this.screenRect(pe, rr);
-      const d = document.createElement("div");
-      d.className = "pdfann-selrect";
+      const d = createDiv("pdfann-selrect");
       d.style.left = sr.x + "px";
       d.style.top = sr.y + "px";
       d.style.width = sr.w + "px";
@@ -1862,7 +1856,7 @@ export class PDFView extends ItemView {
     try {
       const page = await this.pdfDoc.getPage(pe.num);
       pe.items = await getTextItems(page);
-    } catch (e) {
+    } catch {
       pe.items = [];
     }
     return pe.items;
@@ -1871,8 +1865,7 @@ export class PDFView extends ItemView {
   private showTextPopup(pe: PageEl, page: number, rects: PRect[], text: string, cx: number, cy: number) {
     this.removePopup();
     let color = this.settings.highlighterColor;
-    const pop = document.createElement("div");
-    pop.className = "pdfann-popup";
+    const pop = createDiv("pdfann-popup");
     const preview = pop.createDiv("pdfann-popup-text");
     const flat = text.replace(/\s+/g, " ").trim();
     preview.setText(flat.length > 42 ? flat.slice(0, 42) + "…" : flat);
@@ -1896,7 +1889,7 @@ export class PDFView extends ItemView {
       };
       this.store.add(this.file.path, a);
       this.paintPage(pe);
-      this.renderSidebar();
+      void this.renderSidebar();
       this.scheduleSave();
       this.removePopup();
       this.clearSelectionPreview();
@@ -1936,7 +1929,7 @@ export class PDFView extends ItemView {
       };
       this.store.add(this.file.path, a);
       this.paintPage(pe);
-      this.renderSidebar();
+      void this.renderSidebar();
       this.scheduleSave();
       this.clearSelectionPreview();
     };
@@ -1954,19 +1947,19 @@ export class PDFView extends ItemView {
     }
     row.createDiv("pdfann-popup-sep");
     mk(t("复制", "Copy")).onclick = () => {
-      navigator.clipboard.writeText(text);
+      void navigator.clipboard.writeText(text);
       new Notice(t("已复制选中文字", "Selected text copied"));
       this.removePopup();
       this.clearSelectionPreview();
     };
     mk(t("引用", "Cite")).onclick = () => {
       const link = `[[${this.file.name}#page=${page}|${this.pageLabel(page)}]]`;
-      navigator.clipboard.writeText(`「${text}」（${link}）`);
+      void navigator.clipboard.writeText(`「${text}」（${link}）`);
       new Notice(t("已复制引用", "Citation copied"));
       this.removePopup();
       this.clearSelectionPreview();
     };
-    document.body.appendChild(pop);
+    activeDocument.body.appendChild(pop);
 
     // Drop the selection shading once the user clicks away from both the popup
     // and the page, so stale blue boxes never linger.
@@ -1975,8 +1968,8 @@ export class PDFView extends ItemView {
       if (this.selPreviewEl && this.selPreviewEl.contains(e.target as Node)) return;
       this.clearSelectionPreview();
     };
-    document.addEventListener("pointerdown", away, true);
-    this.popupCleanup = () => document.removeEventListener("pointerdown", away, true);
+    activeDocument.addEventListener("pointerdown", away, true);
+    this.popupCleanup = () => activeDocument.removeEventListener("pointerdown", away, true);
 
     const rect = pop.getBoundingClientRect();
     let left = cx - rect.width / 2;
@@ -2014,7 +2007,6 @@ export class PDFView extends ItemView {
     const color = isHi ? this.settings.highlighterColor : this.settings.penColor;
     const width = isHi ? this.settings.highlighterWidth : this.settings.penWidth;
     const opacity = isHi ? 0.32 : 1;
-    let last = null as any;
     const drawSeg = (e: PointerEvent) => {
       const p = this.toPdf(pe, e.clientX, e.clientY);
       const prev = pts[pts.length - 1];
@@ -2038,7 +2030,6 @@ export class PDFView extends ItemView {
     const onMove = (e: PointerEvent) => {
       const events = (e as any).getCoalescedEvents ? (e as any).getCoalescedEvents() : [e];
       for (const ce of events) drawSeg(ce);
-      last = e;
     };
     const finish = () => {
       layer.removeEventListener("pointermove", onMove);
@@ -2062,7 +2053,7 @@ export class PDFView extends ItemView {
       };
       this.store.add(this.file.path, a);
       this.paintPage(pe);
-      this.renderSidebar();
+      void this.renderSidebar();
       this.scheduleSave();
     };
     try {
@@ -2095,7 +2086,7 @@ export class PDFView extends ItemView {
         if (this.selectedId === a.id) this.selectedId = null;
       }
       this.paintPage(pe);
-      this.renderSidebar();
+      void this.renderSidebar();
       this.scheduleSave();
     };
 
@@ -2133,7 +2124,7 @@ export class PDFView extends ItemView {
       fill: "none",
       "stroke-linecap": "round",
       "pointer-events": "none",
-    } as any);
+    });
     pe.svg.appendChild(preview);
     let p1 = p0;
     const update = (e: PointerEvent) => {
@@ -2200,7 +2191,7 @@ export class PDFView extends ItemView {
       this.selectedId = a.id;
       this.paintPage(pe);
       this.updateOptions();
-      this.renderSidebar();
+      void this.renderSidebar();
       this.scheduleSave();
     };
     try {
@@ -2251,7 +2242,7 @@ export class PDFView extends ItemView {
       } catch { /* ignore */ }
       this.pushSnapshot(before);
       this.scheduleSave();
-      this.renderSidebar();
+      void this.renderSidebar();
     };
     try {
       layer.setPointerCapture(ev.pointerId);
@@ -2295,7 +2286,7 @@ export class PDFView extends ItemView {
       this.selectedId = a.id;
       this.paintPage(pe);
       this.updateOptions();
-      this.renderSidebar();
+      void this.renderSidebar();
       this.scheduleSave();
     };
     try {
@@ -2374,7 +2365,7 @@ export class PDFView extends ItemView {
     };
     this.store.add(this.file.path, a);
     this.paintPage(pe);
-    this.renderSidebar();
+    void this.renderSidebar();
     this.scheduleSave();
   }
 
@@ -2389,7 +2380,7 @@ export class PDFView extends ItemView {
       n.updated = Date.now();
     }
     this.repaintAll();
-    this.renderSidebar();
+    void this.renderSidebar();
     this.scheduleSave();
   }
 
@@ -2417,7 +2408,7 @@ export class PDFView extends ItemView {
     };
     this.store.add(this.file.path, a);
     this.paintPage(pe);
-    this.renderSidebar();
+    void this.renderSidebar();
     this.scheduleSave();
   }
 
@@ -2433,7 +2424,7 @@ export class PDFView extends ItemView {
       a.updated = Date.now();
     }
     this.repaintAll();
-    this.renderSidebar();
+    void this.renderSidebar();
     this.scheduleSave();
   }
 
@@ -2467,12 +2458,12 @@ export class PDFView extends ItemView {
       if (moved) {
         this.pushSnapshot(before);
         this.scheduleSave();
-        this.renderSidebar();
+        void this.renderSidebar();
         this.paintPage(pe);
       } else if (a.type === "note") {
-        this.editNote(a);
+        void this.editNote(a);
       } else {
-        this.editTextBox(a);
+        void this.editTextBox(a);
       }
     };
     try {
@@ -2507,7 +2498,7 @@ export class PDFView extends ItemView {
     } catch { /* ignore */ }
     this.selectedId = null;
     this.repaintAll();
-    this.renderSidebar();
+    void this.renderSidebar();
     this.scheduleSave();
   }
 
@@ -2566,7 +2557,7 @@ export class PDFView extends ItemView {
     });
     t1.onclick = () => {
       this.sideTab = "annots";
-      this.renderSidebar();
+      void this.renderSidebar();
     };
     const t2 = tabs.createEl("button", {
       cls: "pdfann-tab" + (this.sideTab === "outline" ? " is-active" : ""),
@@ -2574,7 +2565,7 @@ export class PDFView extends ItemView {
     });
     t2.onclick = () => {
       this.sideTab = "outline";
-      this.renderSidebar();
+      void this.renderSidebar();
     };
 
     const body = side.createDiv("pdfann-side-body");
@@ -2642,7 +2633,7 @@ export class PDFView extends ItemView {
           this.pushUndo();
           this.store.remove(this.file.path, a.id);
           this.repaintAll();
-          this.renderSidebar();
+          void this.renderSidebar();
           this.scheduleSave();
         };
       }
@@ -2674,7 +2665,7 @@ export class PDFView extends ItemView {
     if (this.outlineCache) return this.outlineCache;
     try {
       this.outlineCache = (await this.pdfDoc.getOutline()) || [];
-    } catch (e) {
+    } catch {
       this.outlineCache = [];
     }
     return this.outlineCache;
@@ -2688,7 +2679,7 @@ export class PDFView extends ItemView {
       if (typeof ref === "number") return ref + 1;
       const idx = await this.pdfDoc.getPageIndex(ref);
       return idx + 1;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -2696,8 +2687,7 @@ export class PDFView extends ItemView {
   private flash(a: Annot) {
     const pe = this.pages[a.page - 1];
     if (!pe || !pe.viewport) return;
-    const box = document.createElement("div");
-    box.className = "pdfann-flash";
+    const box = createDiv("pdfann-flash");
     let r: { x: number; y: number; w: number; h: number } | null = null;
     if ("rects" in (a as any) && (a as TextMark).rects?.length) {
       const rs = (a as TextMark).rects.map((x) => this.screenRect(pe, x));
@@ -2796,7 +2786,7 @@ export class PDFView extends ItemView {
         this.pushUndo();
         this.store.replaceAnnots(this.file.path, []);
         this.store.save();
-        this.renderSidebar();
+        void this.renderSidebar();
       }
       await this.loadPdf();
     } catch (e: any) {
@@ -2815,7 +2805,7 @@ export class PDFView extends ItemView {
     this.pushUndo();
     for (const a of annots) this.store.remove(this.file.path, a.id);
     this.repaintAll();
-    this.renderSidebar();
+    void this.renderSidebar();
     this.scheduleSave();
   }
 
@@ -2832,14 +2822,14 @@ export class PDFView extends ItemView {
     this.pushUndo();
     this.store.replaceAnnots(this.file.path, []);
     this.repaintAll();
-    this.renderSidebar();
+    void this.renderSidebar();
     this.scheduleSave();
   }
 
   // ---------------------------------------------------------------- keys
 
   private onKey(ev: KeyboardEvent) {
-    if (this.app.workspace.activeLeaf !== this.leaf) return;
+    if (this.app.workspace.getActiveViewOfType(ItemView) !== this) return;
     const t = ev.target as HTMLElement;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
     if (this.popupEl) {

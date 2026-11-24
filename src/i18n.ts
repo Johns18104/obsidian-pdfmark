@@ -18,7 +18,7 @@ function fromSystem(): Lang {
   let tag = "";
   try {
     tag = getLanguage() || "";
-  } catch (e) {
+  } catch {
     /* very old Obsidian: fall through to the browser tag */
   }
   if (!tag) tag = (typeof navigator !== "undefined" && navigator.language) || "en";

@@ -67,7 +67,7 @@ export default class PdfAnnotatorPlugin extends Plugin {
       checkCallback: (checking: boolean) => {
         const file = this.app.workspace.getActiveFile();
         if (file && file.extension.toLowerCase() === "pdf") {
-          if (!checking) this.openPdf(file);
+          if (!checking) void this.openPdf(file);
           return true;
         }
         return false;
@@ -80,7 +80,7 @@ export default class PdfAnnotatorPlugin extends Plugin {
       checkCallback: (checking: boolean) => {
         const view = this.app.workspace.getActiveViewOfType(PDFView);
         if (view) {
-          if (!checking) view.loadPdf();
+          if (!checking) void view.loadPdf();
           return true;
         }
         return false;
@@ -101,7 +101,7 @@ export default class PdfAnnotatorPlugin extends Plugin {
   }
 
   onunload() {
-    if (this.store) this.store.flush();
+    if (this.store) void this.store.flush();
     // Deliberately no detachLeavesOfType() here: Obsidian tears the view down
     // itself on disable, and detaching would send the leaf back to its default
     // location even when the user had moved it somewhere deliberate.
@@ -118,7 +118,7 @@ export default class PdfAnnotatorPlugin extends Plugin {
 
   private openActivePdf() {
     const file = this.app.workspace.getActiveFile();
-    if (file && file.extension.toLowerCase() === "pdf") this.openPdf(file);
+    if (file && file.extension.toLowerCase() === "pdf") void this.openPdf(file);
     else new Notice(t("请先选中一个 PDF 文件", "Select a PDF file first"));
   }
 

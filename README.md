@@ -115,10 +115,10 @@ If you want to verify this, search the source for `fetch`, `XMLHttpRequest` or `
 
 ## Compatibility
 
-- Obsidian **1.5.0** or newer.
+- Obsidian **1.8.7** or newer (the version that added `getLanguage()`).
 - Desktop: macOS, Windows, Linux. Mobile: iOS/iPadOS and Android (pinch to zoom, scroll to pan).
 - Does not conflict with other PDF plugins; `.pdf` handling is opt-in.
-- 需要 Obsidian 1.5.0+；桌面与移动端都可用；与其他 PDF 插件不冲突。
+- 需要 Obsidian 1.8.7+（`getLanguage()` 从这个版本才有）；桌面与移动端都可用；与其他 PDF 插件不冲突。
 
 ---
 
@@ -165,6 +165,7 @@ npm install
 npm run build      # bundles src/ into main.js (pdf.js worker + CMap + fonts inlined)
 npm run dev        # watch mode
 npm test           # headless Chrome regression suite (46 assertions)
+npm run lint       # the community-directory rule set, offline
 ```
 
 The build inlines every runtime asset into `main.js`, because the community installer only downloads `main.js`, `manifest.json` and `styles.css`.
