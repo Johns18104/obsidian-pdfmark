@@ -1,6 +1,7 @@
 import { PDFDocument, rgb, LineCapStyle, BlendMode } from "pdf-lib";
 import { Annot, InkAnnot, NoteAnnot, ShapeAnnot, TextBoxAnnot, TextMark, hexToRgb01 } from "./types";
 import { textToPng } from "./richtext";
+import { arrowHead } from "./arrow";
 
 function c(hex: string) {
   const [r, g, b] = hexToRgb01(hex);
@@ -97,25 +98,26 @@ export async function burnAnnotations(bytes: Uint8Array, annots: Annot[]): Promi
     } else if (a.type === "line" || a.type === "arrow") {
       const s = a as ShapeAnnot;
       const th = Math.max(0.5, s.width);
+      const head = a.type === "arrow" ? arrowHead(s.p0, s.p1, th) : null;
+      const end = head ? head.shaftEnd : s.p1;
       page.drawLine({
         start: { x: s.p0.x, y: s.p0.y },
-        end: { x: s.p1.x, y: s.p1.y },
+        end: { x: end.x, y: end.y },
         thickness: th,
         color: c(s.color),
-        lineCap: LineCapStyle.Round,
+        // Butt: a round cap at the tip would stick out in front of the head.
+        lineCap: head ? LineCapStyle.Butt : LineCapStyle.Round,
       });
-      if (a.type === "arrow") {
-        const ang = Math.atan2(s.p1.y - s.p0.y, s.p1.x - s.p0.x);
-        const hl = Math.max(5, th * 4.2);
-        for (const d of [Math.PI / 7, -Math.PI / 7]) {
-          page.drawLine({
-            start: { x: s.p1.x, y: s.p1.y },
-            end: { x: s.p1.x - hl * Math.cos(ang + d), y: s.p1.y - hl * Math.sin(ang + d) },
-            thickness: th,
-            color: c(s.color),
-            lineCap: LineCapStyle.Round,
-          });
-        }
+      if (head) {
+        // Filled triangle, same proportions as the on-screen SVG. drawSvgPath
+        // flips Y, so the points are expressed relative to the tip with Y down.
+        const rel = (p: { x: number; y: number }) =>
+          `${(p.x - head.tip.x).toFixed(3)} ${(head.tip.y - p.y).toFixed(3)}`;
+        page.drawSvgPath(`M 0 0 L ${rel(head.baseL)} L ${rel(head.baseR)} Z`, {
+          x: head.tip.x,
+          y: head.tip.y,
+          color: c(s.color),
+        });
       }
     } else if (a.type === "note") {
       // The body of a note is drawn on the page as real text, not as a sticky

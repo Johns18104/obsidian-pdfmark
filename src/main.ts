@@ -7,7 +7,15 @@ import {
   WorkspaceLeaf,
   normalizePath,
 } from "obsidian";
-import { VIEW_TYPE_PDF, DEFAULT_SETTINGS, PluginSettings } from "./types";
+import {
+  VIEW_TYPE_PDF,
+  DEFAULT_SETTINGS,
+  MAX_FONT_SIZE,
+  MAX_PEN_WIDTH,
+  MAX_SHAPE_WIDTH,
+  MIN_FONT_SIZE,
+  PluginSettings,
+} from "./types";
 import { AnnotStore } from "./store";
 import { PDFView } from "./view";
 import { LangSetting, setLanguage, t, tf } from "./i18n";
@@ -31,6 +39,13 @@ export default class PdfAnnotatorPlugin extends Plugin {
       crops: raw.crops || {},
     };
     this.settings = this.data.settings;
+    // Old data files may hold a stroke width or font size outside today's
+    // slider range; pull them back in so the value shown is the value used.
+    this.settings.shapeWidth = Math.min(MAX_SHAPE_WIDTH, Math.max(0.5, this.settings.shapeWidth));
+    this.settings.noteSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, this.settings.noteSize));
+    this.settings.textSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, this.settings.textSize));
+    this.settings.penWidth = Math.min(MAX_PEN_WIDTH, Math.max(0.5, this.settings.penWidth));
+    this.settings.highlighterWidth = Math.min(MAX_PEN_WIDTH, Math.max(0.5, this.settings.highlighterWidth));
     setLanguage(this.settings.language);
     this.store = new AnnotStore(this);
 

@@ -53,9 +53,9 @@ PDFmark does **not** take over `.pdf` by default. Open a PDF with it through the
 1. Open a PDF. The left rail holds the tools, the bottom bar holds the options for the active tool.
 2. **Select** — drag across text. A floating menu appears: highlight / underline / strike / note, seven colours, copy, quote. Selecting part of a line works: drag from the first character you want to the last.
 3. **Pen / highlighter** — draw. Width and colour come from the bottom bar.
-4. **Shapes** — drag to create; drag inside to move; drag a corner to resize.
-5. **Text box** — click once, type in the dialog, confirm. The bottom slider becomes **font size** (6–48 pt) for this tool. Click an existing box to edit it, drag to move it; with a box selected the slider resizes *that* box without touching the default for new ones.
-6. **Note** — click once and type; the text is drawn on the page, not hidden behind an icon. Notes use the same font-size slider (6–48 pt).
+4. **Shapes** — drag to create; drag inside to move; drag a corner to resize. Stroke width goes up to 13 pt, which is as heavy as a marker page mark ever needs.
+5. **Text box** — click once, type in the dialog, confirm. The bottom slider becomes **font size** (6–30 pt) for this tool. Click an existing box to edit it, drag to move it; with a box selected the slider resizes *that* box without touching the default for new ones.
+6. **Note** — click once and type; the text is drawn on the page, not hidden behind an icon. Notes use the same font-size slider (6–30 pt).
 7. **Eraser** — click an annotation to delete it, or press `Delete` with something selected.
 8. Top bar: page number box, page count, zoom, fit width, night mode, crop margins. Right sidebar: annotations and outline.
 9. **More (⋯)** — export to Markdown, copy a citation for the current page, burn annotations into the PDF, clear annotations.
@@ -181,9 +181,9 @@ The build inlines every runtime asset into `main.js`, because the community inst
 
 1. **选中**：拖选文字，弹出菜单里选高亮 / 下划线 / 删除线 / 批注，可选 7 种颜色，也能复制或生成引用。支持只选半行、跨行选。
 2. **画笔 / 荧光笔**：直接写，粗细和颜色在底部调。
-3. **直线 / 方框 / 椭圆 / 箭头**：拖出一个，画完还能拖动、拉伸。
-4. **文字**：点一下页面，输入中英文，确定即可；底部滑块此时是**字号**（6–48 pt）。双击已存在的文字框可以改；选中某一张卡时拖滑块只改这一张，不影响以后新建的默认字号。
-5. **便签**：点一下写内容，文字会直接显示在页面上，不会只剩一个小图标；字号同样用底部滑块调（6–48 pt）。
+3. **直线 / 方框 / 椭圆 / 箭头**：拖出一个，画完还能拖动、拉伸；粗细可调到 13 pt，再粗就没有使用场景了。
+4. **文字**：点一下页面，输入中英文，确定即可；底部滑块此时是**字号**（6–30 pt）。双击已存在的文字框可以改；选中某一张卡时拖滑块只改这一张，不影响以后新建的默认字号。
+5. **便签**：点一下写内容，文字会直接显示在页面上，不会只剩一个小图标；字号同样用底部滑块调（6–30 pt）。
 6. **橡皮**：点一下整条删除，也可以用 `Delete` 键。
 7. 顶栏：页码输入、总页数、缩放、适宽、夜间反色、裁白边。右侧：批注列表与 PDF 目录。
 8. **更多（⋯）**：导出 Markdown、复制当前页引用、烧入 PDF、清除批注。

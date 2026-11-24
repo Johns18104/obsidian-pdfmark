@@ -143,6 +143,12 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   sidebarOpen: true,
 };
 
+/** Slider / stored-value limits. Beyond these there is no real use case. */
+export const MAX_SHAPE_WIDTH = 13;
+export const MIN_FONT_SIZE = 6;
+export const MAX_FONT_SIZE = 30;
+export const MAX_PEN_WIDTH = 30;
+
 export const PALETTE = [
   "#f2c200",
   "#f08c1a",

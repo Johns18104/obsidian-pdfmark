@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1 — arrow heads that survive zooming
+
+- **Fixed: the arrow looked broken once zoomed in.** The shaft was drawn all the way to the tip with a round cap, so the cap stuck out in front of the point — barely visible at 100%, an obvious rounded nub at 300%. The shaft now stops inside the base of the head and uses a flat cap, and the head is a filled triangle whose size comes from the stroke width in PDF units, so it scales with the page instead of being pinned to a pixel value. Screen rendering and the burned-in PDF share one geometry function (`src/arrow.ts`), so what you see is what gets written.
+- **Shape stroke width now stops at 13 pt** (was 30). Straight lines, boxes, ellipses and arrows no longer look like paint rollers; the pen and the highlighter keep their 0.5–30 range because a wide highlighter stroke is normal.
+- **Font size for text boxes and notes now stops at 30 pt** (was 48); the minimum is unchanged at 6 pt.
+- Values already stored above the new limits are not rewritten — they only snap to the range the next time you move the slider.
+- Regression suite: 43 assertions, including the slider range per tool, the shaft/head geometry at two stroke widths, and the burned arrow carrying its own head.
+
 ## 1.1.0 — English interface, language switch
 
 - The entire interface can now be shown in English: tool rail, options bar, menus, dialogs, sidebar, empty states, notices, settings page and exported Markdown.

@@ -651,6 +651,161 @@ async function main() {
     window.view.updateOptions();
   });
 
+  // ---------- 3.7 slider ranges + arrow head geometry ----------
+  const limits = await page.evaluate(() => {
+    const v = window.view;
+    const read = (tool) => {
+      v.setTool(tool);
+      const r = document.querySelector(".pdfann-range");
+      return `${r.min}/${r.max}/${r.step}`;
+    };
+    v.selectedId = null;
+    const out = {
+      rect: read("rect"),
+      line: read("line"),
+      ellipse: read("ellipse"),
+      arrow: read("arrow"),
+      textbox: read("textbox"),
+      note: read("note"),
+      pen: read("pen"),
+    };
+    v.setTool("select");
+    return out;
+  });
+  report(
+    "量程：图形粗细 0.5–13，字号 6–30，画笔仍到 30",
+    limits.rect === "0.5/13/0.5" &&
+      limits.line === "0.5/13/0.5" &&
+      limits.ellipse === "0.5/13/0.5" &&
+      limits.arrow === "0.5/13/0.5" &&
+      limits.textbox === "6/30/1" &&
+      limits.note === "6/30/1" &&
+      limits.pen === "0.5/30/0.5",
+    JSON.stringify(limits)
+  );
+
+  // A thick arrow must not let its shaft poke through the point: the shaft ends
+  // at the base of the filled head, and the head grows with the stroke width.
+  const arrowGeom = await page.evaluate(() => {
+    const v = window.view;
+    v.setTool("select");
+    v.selectedId = null;
+    const make = (id, width, x0) => {
+      v.store.remove(v.file.path, id);
+      v.store.add(v.file.path, {
+        id,
+        page: 1,
+        type: "arrow",
+        color: "#f08c1a",
+        width,
+        p0: { x: x0, y: 520 },
+        p1: { x: x0 + 200, y: 520 },
+        created: Date.now(),
+        updated: Date.now(),
+      });
+    };
+    const measure = (id) => {
+      v.paintPage(v.pages[0]);
+      const g = Array.from(v.pages[0].svg.querySelectorAll("g")).find(
+        (x) => x.querySelector('line[stroke="#f08c1a"]') && x.querySelector('polygon[fill="#f08c1a"]')
+      );
+      const line = g.querySelector("line");
+      const poly = g.querySelector("polygon");
+      const pts = poly.getAttribute("points").trim().split(" ").map((p) => p.split(",").map(Number));
+      const tip = pts[0];
+      const base = pts[1];
+      return {
+        head: Math.abs(tip[0] - base[0]),
+        gap: Math.abs(tip[0] - Number(line.getAttribute("x2"))),
+        cap: line.getAttribute("stroke-linecap"),
+        strokeW: Number(line.getAttribute("stroke-width")),
+        tipY: tip[1],
+        shaftY: Number(line.getAttribute("y2")),
+      };
+    };
+    make("arrow-fat", 13, 120);
+    const fat = measure("arrow-fat");
+    const wings = (() => {
+      const poly = v.pages[0].svg.querySelector('polygon[fill="#f08c1a"]');
+      const pts = poly.getAttribute("points").trim().split(" ").map((p) => p.split(",").map(Number));
+      return Math.abs(pts[1][1] - pts[2][1]);
+    })();
+    v.store.remove(v.file.path, "arrow-fat");
+    v.paintPage(v.pages[0]);
+    make("arrow-thin", 6.5, 120);
+    const thin = measure("arrow-thin");
+    const scale = v.scale;
+    for (const id of ["arrow-fat", "arrow-thin"]) v.store.remove(v.file.path, id);
+    v.paintPage(v.pages[0]);
+    return { fat, thin, wings, scale };
+  });
+  report(
+    "粗箭头：箭柄停在箭头底部，圆头不再顶出箭尖",
+    arrowGeom.fat.cap === "butt" &&
+      arrowGeom.fat.gap > arrowGeom.fat.head * 0.7 &&
+      Math.abs(arrowGeom.fat.shaftY - arrowGeom.fat.tipY) < 0.01 &&
+      arrowGeom.wings > arrowGeom.fat.head * 0.6,
+    JSON.stringify(arrowGeom)
+  );
+  report(
+    "箭头大小只随线宽变（6.5 与 13 差一倍）",
+    Math.abs(arrowGeom.fat.head / arrowGeom.thin.head - 2) < 0.05,
+    JSON.stringify({ fat: arrowGeom.fat.head, thin: arrowGeom.thin.head })
+  );
+
+  // The burned PDF must carry the same filled triangle (probe14 checks the
+  // pixels; here we only make sure the head is really written into the page).
+  const burnArrow = await page.evaluate(async () => {
+    const v = window.view;
+    const base = { id: "b1", page: 1, color: "#f08c1a", width: 13, p0: { x: 120, y: 520 }, p1: { x: 320, y: 520 } };
+    const asArrow = await window.__burn(v.pdfBytes, [{ ...base, type: "arrow", created: 1, updated: 1 }]);
+    const asLine = await window.__burn(v.pdfBytes, [{ ...base, type: "line", created: 1, updated: 1 }]);
+    const txt = new TextDecoder("latin1").decode(asArrow);
+    return { arrow: asArrow.length, line: asLine.length, same: asArrow.length === asLine.length, img: (txt.match(/\/Subtype\s*\/Image/g) || []).length };
+  });
+  report(
+    "烧入的箭头额外写入三角头（比直线多出一段绘制指令）",
+    !burnArrow.same && burnArrow.arrow > burnArrow.line,
+    JSON.stringify(burnArrow)
+  );
+
+  // An old annotation wider than today's limit still renders, it is just
+  // clamped the next time the user touches the slider.
+  const legacy = await page.evaluate(() => {
+    const v = window.view;
+    const id = "arrow-legacy";
+    v.store.remove(v.file.path, id);
+    v.store.add(v.file.path, {
+      id,
+      page: 1,
+      type: "arrow",
+      color: "#f08c1a",
+      width: 26,
+      p0: { x: 120, y: 480 },
+      p1: { x: 320, y: 480 },
+      created: Date.now(),
+      updated: Date.now(),
+    });
+    v.paintPage(v.pages[0]);
+    v.selectedId = id;
+    v.updateOptions();
+    const r = document.querySelector(".pdfann-range");
+    const shown = document.querySelector(".pdfann-width-val").textContent;
+    const kept = v.store.find(v.file.path, id).width;
+    r.value = "13";
+    r.dispatchEvent(new Event("input", { bubbles: true }));
+    const after = v.store.find(v.file.path, id).width;
+    v.store.remove(v.file.path, id);
+    v.selectedId = null;
+    v.paintPage(v.pages[0]);
+    return { shown, clamped: r.max, kept, after };
+  });
+  report(
+    "旧数据超限不报错：滑块顶到 13 才改",
+    legacy.clamped === "13" && legacy.kept === 26 && legacy.after === 13,
+    JSON.stringify(legacy)
+  );
+
   // ---------- 13. grab and drag while a creating tool is still armed ----------
   await page.evaluate(() => {
     const v = window.view;

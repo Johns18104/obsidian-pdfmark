@@ -2,9 +2,14 @@ import { ItemView, TFile, WorkspaceLeaf, setIcon, Notice, Menu } from "obsidian"
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
 import { PDF_WORKER_B64 } from "./worker-b64";
 import { AnnotStore } from "./store";
+import { arrowHead } from "./arrow";
 import {
   Annot,
   InkAnnot,
+  MAX_FONT_SIZE,
+  MAX_PEN_WIDTH,
+  MAX_SHAPE_WIDTH,
+  MIN_FONT_SIZE,
   NoteAnnot,
   PALETTE,
   PRect,
@@ -1045,21 +1050,29 @@ export class PDFView extends ItemView {
 
     let el: SVGElement | null = null;
     if (sh.type === "line" || sh.type === "arrow") {
-      const line = this.svgEl("line", { ...common, x1: p0.x, y1: p0.y, x2: p1.x, y2: p1.y });
+      const head = sh.type === "arrow" ? arrowHead(p0, p1, w) : null;
+      const shaftEnd = head ? head.shaftEnd : p1;
+      const line = this.svgEl("line", {
+        ...common,
+        // The shaft of an arrow stops at the base of the head and uses a butt
+        // cap: a round cap at the tip leaves a rounded nub in front of the
+        // point, which becomes glaringly obvious once you zoom in.
+        "stroke-linecap": head ? "butt" : "round",
+        x1: p0.x,
+        y1: p0.y,
+        x2: shaftEnd.x,
+        y2: shaftEnd.y,
+      });
       g.appendChild(line);
       el = line;
-      if (sh.type === "arrow") {
-        const ang = Math.atan2(p1.y - p0.y, p1.x - p0.x);
-        const hl = Math.max(7, w * 4.2);
-        const a1 = ang - Math.PI / 7;
-        const a2 = ang + Math.PI / 7;
+      if (head) {
         g.appendChild(
           this.svgEl("polygon", {
-            points: `${p1.x},${p1.y} ${p1.x - hl * Math.cos(a1)},${p1.y - hl * Math.sin(a1)} ${
-              p1.x - hl * Math.cos(a2)
-            },${p1.y - hl * Math.sin(a2)}`,
+            points: `${head.tip.x},${head.tip.y} ${head.baseL.x},${head.baseL.y} ${head.baseR.x},${head.baseR.y}`,
             fill: sh.color,
-            stroke: "none",
+            stroke: sh.color,
+            "stroke-width": Math.max(0.4, Math.min(w * 0.35, head.len * 0.12)),
+            "stroke-linejoin": "round",
           })
         );
       }
@@ -1202,9 +1215,10 @@ export class PDFView extends ItemView {
     const wrap = el.createDiv("pdfann-width");
     wrap.createSpan({ cls: "pdfann-width-label", text: t("粗细", "Width") });
     const range = wrap.createEl("input", { type: "range", cls: "pdfann-range" });
-    range.min = "0.5";
-    range.max = "30";
-    range.step = "0.5";
+    const [rMin, rMax, rStep] = this.sliderRange(null);
+    range.min = rMin;
+    range.max = rMax;
+    range.step = rStep;
     (range as HTMLInputElement).value = String(this.currentWidth());
     const val = wrap.createSpan({ cls: "pdfann-width-val", text: String(this.currentWidth()) });
     range.oninput = () => {
@@ -1253,6 +1267,23 @@ export class PDFView extends ItemView {
   private isFontSize(a?: Annot | null) {
     const t = a ? a.type : this.tool;
     return t === "textbox" || t === "note";
+  }
+
+  /**
+   * [min, max, step] of the size slider. Its meaning depends on what it edits:
+   * font size for text and notes, stroke width for shapes and ink. Shape
+   * strokes stop at 13 pt — anything thicker has no use on a page — while the
+   * pen and highlighter keep their larger range.
+   */
+  private sliderRange(a?: Annot | null): [string, string, string] {
+    const kind = a ? a.type : this.tool;
+    if (kind === "textbox" || kind === "note") {
+      return [String(MIN_FONT_SIZE), String(MAX_FONT_SIZE), "1"];
+    }
+    if (kind === "line" || kind === "rect" || kind === "ellipse" || kind === "arrow") {
+      return ["0.5", String(MAX_SHAPE_WIDTH), "0.5"];
+    }
+    return ["0.5", String(MAX_PEN_WIDTH), "0.5"];
   }
 
   private currentWidth() {
@@ -1308,17 +1339,15 @@ export class PDFView extends ItemView {
     if (range) {
       // A font size of 0.5 pt is meaningless, and 12 pt text needs more headroom
       // than a 2 pt pen stroke, so the scale changes with the current tool.
-      const min = fontSize ? "6" : "0.5";
-      const max = fontSize ? "48" : "30";
-      const step = fontSize ? "1" : "0.5";
+      const [min, max, step] = this.sliderRange(selA);
       if (range.min !== min) range.min = min;
       if (range.max !== max) range.max = max;
       if (range.step !== step) range.step = step;
       const w = this.widthOf(selA);
       if (typeof w === "number") {
-        range.value = String(w);
+        range.value = String(Math.min(Math.max(w, parseFloat(min)), parseFloat(max)));
         const v = this.optsEl.querySelector(".pdfann-width-val");
-        if (v) v.setText(String(Math.round(w)));
+        if (v) v.setText(this.isFontSize(selA) ? String(Math.round(w)) : String(Math.round(w * 10) / 10));
       }
     }
     const del = this.optsEl.querySelector(".pdfann-opts-extra .pdfann-text-btn");
@@ -1358,8 +1387,21 @@ export class PDFView extends ItemView {
     this.updateOptions();
   }
 
-  private pickWidth(w: number) {
+  /** Keep a slider value inside the range that applies to the current target. */
+  private clampSize(w: number, a?: Annot | null): number {
+    const kind = a ? a.type : this.tool;
+    if (kind === "textbox" || kind === "note") {
+      return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, w));
+    }
+    if (kind === "line" || kind === "rect" || kind === "ellipse" || kind === "arrow") {
+      return Math.min(MAX_SHAPE_WIDTH, Math.max(0.5, w));
+    }
+    return Math.min(MAX_PEN_WIDTH, Math.max(0.5, w));
+  }
+
+  private pickWidth(raw: number) {
     const sel = this.selectedAnnot();
+    const w = this.clampSize(raw, sel);
     if (sel) {
       let changed = false;
       if (sel.type === "textbox" || sel.type === "note") {
