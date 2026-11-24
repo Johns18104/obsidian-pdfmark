@@ -111,6 +111,19 @@ The clipboard is written to only when you press **Copy** or **Quote**, and is ne
 
 If you want to verify this, search the source for `fetch`, `XMLHttpRequest` or `http` — you will not find any.
 
+### A note on the bundled pdf.js
+
+The plugin bundles pdf.js 3.11, which `npm audit` flags for CVE-2024-4367 (a
+malicious PDF could reach `new Function` through a crafted font). PDFmark does
+not use that path: `isEvalSupported` is forced to `false` and the build strips
+`new Function`, `eval` and the dynamic `<script>` loader from the bundle, so
+pdf.js falls back to its own non-eval font interpreter. The bundling step fails
+the build if any of those tokens reappear, which also keeps the plugin inside the
+community directory's "no dynamic code" rule. Upgrading to pdf.js 4.x is planned
+but is a breaking change for the viewer.
+
+**关于内置的 pdf.js**：内置的是 3.11，`npm audit` 会报 CVE-2024-4367（恶意 PDF 可借字体数据触达 `new Function`）。本插件不走这条路径：`isEvalSupported` 固定为 `false`，且构建时会把 `new Function`、`eval` 与动态 `<script>` 加载器一并剥离，pdf.js 只会使用自带的非 eval 字体解释器；这些字样一旦重新出现，构建会直接失败。升级到 pdf.js 4.x 已列入计划，但属于破坏性改动。
+
 ---
 
 ## Compatibility

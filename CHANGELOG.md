@@ -25,6 +25,13 @@ The directory rejects a plugin that uses APIs newer than the version it declares
     backslash would have ended the class early and changed the expression).
   - `activeLeaf` → `getActiveViewOfType(ItemView)`, which is not deprecated and
     answers the same question.
+- **Stylesheet:** the single `!important` is gone — `.pdfann-root` is repeated
+  in the selector so it out-specifies Obsidian's own `.view-content` padding.
+- **Lockfile:** `tar` is pinned to a patched 7.x through `overrides`; it only
+  reached the tree as an optional dependency of pdf.js's Node canvas build.
+  The remaining advisory on pdf.js 3.11 (CVE-2024-4367) does not apply to this
+  bundle, see the README note: `new Function` and `eval` are stripped at build
+  time, so the font path never compiles code.
 - **Still open, on purpose:** `ButtonComponent.setWarning()` is deprecated in
   favour of `setDestructive()`, but that one needs Obsidian 1.13.0, so using it
   now would recreate the same error. The `any`-family warnings (about 300) come
