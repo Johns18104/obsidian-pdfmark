@@ -21,6 +21,7 @@ async function boot() {
     manifest: { version: "test" },
     assetUrl: () => "",
     persist: async () => {},
+    saveSettings: async () => {},
   };
   plugin.settings = plugin.data.settings;
   // Tests pin both the plugin setting and the fake "app language" so "auto"
