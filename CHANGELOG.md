@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.3 — the note dialog is no longer covered, and one click makes one note
+
+- **Fixed: the 确定/取消 buttons of the 批注 dialog were hidden behind the floating text menu.** That menu was pinned at `z-index: 1000`, above Obsidian's modal layer, so it painted over the dialog. It now closes the moment you pick 批注 (nothing you picked is lost — the rects, text and colour are already captured), and its `z-index` moved to `var(--layer-popover)`, below dialogs in general.
+- **Fixed: clicking 批注 again while the dialog was open created extra notes.** Each click started another dialog and each confirm added another highlight-with-note on the same text. The button is now guarded by a single-flight flag, and the popup is gone after the first click so there is nothing left to click twice.
+- An empty or whitespace-only note now behaves like cancelling instead of creating an invisible highlight.
+- Regression suite: 46 assertions, including "the menu is gone, exactly one dialog with its buttons exists, and two rapid clicks produce one annotation".
+
 ## 1.1.2 — thicker underline and strikethrough
 
 - Underline and strikethrough rules are now **2.5 pt** (they were ~1.3 pt on screen and ~1.2 pt once burned in, which read as a hairline next to 12 pt text). The value lives in one constant, `TEXT_RULE_WIDTH`, so the screen and the burned PDF can no longer drift apart.

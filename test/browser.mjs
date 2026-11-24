@@ -1169,6 +1169,99 @@ async function main() {
     JSON.stringify(auto)
   );
 
+  // ---------- 15. 批注（note）弹窗：不被浮动菜单盖住，连点不会重复新建 ----------
+  await page.evaluate(() => {
+    const v = window.view;
+    v.setTool("select");
+    v.selectedId = null;
+    v.goPage(1);
+    v.scrollEl.scrollTop = 0;
+  });
+  await new Promise((r) => setTimeout(r, 400));
+
+  const pickPoint = async (pdfPt) => {
+    await page.evaluate((q) => {
+      const v = window.view, pe = v.pages[0];
+      const r = pe.inner.getBoundingClientRect();
+      const p = pe.viewport.convertToViewportPoint(q.x, q.y);
+      const fy = (a) => (Array.isArray(a) ? a[1] : a.y);
+      const box = v.scrollEl.getBoundingClientRect();
+      const want = r.top + fy(p);
+      if (want < box.top + 60 || want > box.top + box.height - 60) {
+        v.scrollEl.scrollTop += want - (box.top + box.height * 0.45);
+      }
+    }, pdfPt);
+    await new Promise((r) => setTimeout(r, 350));
+    return page.evaluate((q) => window.__toScreen(q.x, q.y), pdfPt);
+  };
+
+  const n0 = await pickPoint({ x: 80, y: 300 });
+  const n1 = await pickPoint({ x: 220, y: 300 });
+  await page.mouse.move(n0.x, n0.y);
+  await page.mouse.down();
+  await page.mouse.move((n0.x + n1.x) / 2, (n0.y + n1.y) / 2, { steps: 4 });
+  await page.mouse.move(n1.x, n1.y, { steps: 4 });
+  await page.mouse.up();
+  await new Promise((r) => setTimeout(r, 300));
+
+  const dlg = await page.evaluate(async () => {
+    const popZ = (() => {
+      const probe = document.createElement("div");
+      probe.className = "pdfann-popup";
+      document.body.appendChild(probe);
+      const z = getComputedStyle(probe).zIndex;
+      probe.remove();
+      return z;
+    })();
+    const btn = Array.from(document.querySelectorAll(".pdfann-popup button")).find(
+      (b) => b.textContent.trim() === "批注"
+    );
+    // 连点两次：第一次打开弹窗，第二次是重复点击
+    btn.click();
+    btn.click();
+    await new Promise((r) => setTimeout(r, 350));
+    const inputs = document.querySelectorAll(".pdfann-modal-input");
+    const boxes = document.querySelectorAll(".pdfann-modal-row");
+    const labels = boxes.length ? Array.from(boxes[0].querySelectorAll("button")).map((b) => b.textContent.trim()) : [];
+    return {
+      popupGone: !document.querySelector(".pdfann-popup"),
+      popZ,
+      modals: inputs.length,
+      labels,
+    };
+  });
+  report(
+    "点「批注」后浮动菜单消失、弹窗只有一个且确定按钮在最上层",
+    dlg.popupGone && dlg.modals === 1 && dlg.labels.includes("确定") && parseFloat(dlg.popZ) < 50,
+    JSON.stringify(dlg)
+  );
+
+  const noteRes = await page.evaluate(async () => {
+    const ta = document.querySelector(".pdfann-modal-input");
+    ta.value = "连点测试批注";
+    const ok = Array.from(document.querySelectorAll(".pdfann-modal-row button")).find(
+      (b) => b.textContent.trim() === "确定"
+    );
+    ok.click();
+    await new Promise((r) => setTimeout(r, 350));
+    const v = window.view;
+    const made = v.store.annotsOf(v.file.path, 1).filter((x) => x.note === "连点测试批注");
+    const out = {
+      made: made.length,
+      type: made[0] && made[0].type,
+      modalsLeft: document.querySelectorAll(".pdfann-modal-input").length,
+    };
+    for (const a of made) v.store.remove(v.file.path, a.id);
+    v.repaintAll();
+    v.renderSidebar();
+    return out;
+  });
+  report(
+    "连点两次「批注」只产生一条批注",
+    noteRes.made === 1 && noteRes.type === "highlight" && noteRes.modalsLeft === 0,
+    JSON.stringify(noteRes)
+  );
+
   await page.screenshot({ path: "test/shot-final.png" });
   await page.evaluate(() => window.view.flushSave());
   await browser.close();

@@ -520,7 +520,9 @@
 /* ---------- popup ---------- */
 .pdfann-popup {
   position: fixed;
-  z-index: 1000;
+  /* Below Obsidian's modal layer: a dialog opened from the popup must never be
+     covered by it. Index was 1000, which painted the popup on top of dialogs. */
+  z-index: var(--layer-popover, 30);
   padding: 5px 7px;
   border-radius: 8px;
   background: var(--background-primary);

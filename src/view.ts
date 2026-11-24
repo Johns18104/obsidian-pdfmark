@@ -1904,9 +1904,24 @@ export class PDFView extends ItemView {
     mk(t("高亮", "Highlight")).onclick = () => apply("highlight");
     mk(t("下划线", "Underline")).onclick = () => apply("underline");
     mk(t("删除线", "Strikethrough")).onclick = () => apply("strike");
-    mk(t("批注", "Note")).onclick = async () => {
-      const note = await TextInputModal.open(this.app, t("添加批注", "Add note"), "");
-      if (!note) return;
+    const noteBtn = mk(t("批注", "Note"));
+    noteBtn.onclick = async () => {
+      // Close the popup before the dialog appears: it floats above Obsidian's
+      // modal layer, so it used to sit on top of the dialog's own 确定/取消
+      // buttons — and every further click on 批注 started yet another note.
+      if (this.noteBusy) return;
+      this.noteBusy = true;
+      this.removePopup();
+      let note: string | null = null;
+      try {
+        note = await TextInputModal.open(this.app, t("添加批注", "Add note"), "");
+      } finally {
+        this.noteBusy = false;
+      }
+      if (!note || !note.trim()) {
+        this.clearSelectionPreview();
+        return;
+      }
       this.pushUndo();
       const a: TextMark = {
         id: uid(),
@@ -1923,7 +1938,6 @@ export class PDFView extends ItemView {
       this.paintPage(pe);
       this.renderSidebar();
       this.scheduleSave();
-      this.removePopup();
       this.clearSelectionPreview();
     };
     row.createDiv("pdfann-popup-sep");
@@ -1975,6 +1989,8 @@ export class PDFView extends ItemView {
   }
 
   private popupCleanup: (() => void) | null = null;
+  /** A note dialog is open; ignore further clicks on the 批注 button. */
+  private noteBusy = false;
 
   private removePopup() {
     if (this.popupCleanup) {
