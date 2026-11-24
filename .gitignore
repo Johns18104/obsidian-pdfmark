@@ -8,3 +8,6 @@ test/harness/*.pdf
 test/*.png
 test/out.pdf
 !images/*.png
+
+# 构建产物，随 Release 附件发布，不进版本库
+main.js
