@@ -1,0 +1,631 @@
+/* PDF 批注本 — 所有样式都限定在 .pdfann-root 下，避免影响其他视图与插件 */
+
+.pdfann-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0 !important;
+  position: relative;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+
+/* ---------- top bar ---------- */
+.pdfann-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  flex: 0 0 40px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  user-select: none;
+}
+.pdfann-nav,
+.pdfann-zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.pdfann-spacer {
+  flex: 1;
+}
+.pdfann-icon-btn,
+.pdfann-tool {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 46px;
+  height: 42px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: var(--radius-s, 5px);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: none;
+}
+.pdfann-tool-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+}
+.pdfann-tool-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.pdfann-tool-label {
+  font-size: 9px;
+  line-height: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.pdfann-tool:hover .pdfann-tool-label {
+  color: var(--text-normal);
+}
+.pdfann-tool.is-active .pdfann-tool-label {
+  color: var(--text-on-accent);
+}
+.pdfann-icon-btn:hover,
+.pdfann-tool:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.pdfann-icon-btn.is-on {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+.pdfann-icon-btn svg,
+.pdfann-tool svg {
+  width: 17px;
+  height: 17px;
+}
+.pdfann-text-btn {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+  border-radius: var(--radius-s, 5px);
+  border: 1px solid var(--background-modifier-border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: none;
+}
+.pdfann-text-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.pdfann-pageinput {
+  width: 42px;
+  height: 24px;
+  text-align: center;
+  font-size: 12px;
+  padding: 0 2px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+.pdfann-total,
+.pdfann-zoomval {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 30px;
+}
+.pdfann-zoomval {
+  text-align: center;
+  min-width: 42px;
+}
+
+/* ---------- body ---------- */
+.pdfann-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+.pdfann-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pdfann-rail {
+  width: 56px;
+  flex: 0 0 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0;
+  overflow-x: hidden;
+  border-right: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  overflow-y: auto;
+  user-select: none;
+}
+.pdfann-tool.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.pdfann-tool.is-on::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+}
+.pdfann-tool {
+  position: relative;
+}
+.pdfann-rail-sep {
+  width: 22px;
+  height: 1px;
+  background: var(--background-modifier-border);
+  margin: 6px 0;
+}
+
+.pdfann-scroll {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  background: var(--background-secondary-alt, var(--background-secondary));
+  outline: none;
+}
+.pdfann-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 8px 90px;
+  position: relative;
+  min-height: 100%;
+}
+
+/* ---------- pages ---------- */
+.pdfann-page {
+  position: relative;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.25);
+  flex: 0 0 auto;
+}
+.pdfann-page-inner {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.pdfann-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+}
+.pdfann-ink {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.pdfann-draw {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  touch-action: pan-y;
+}
+.pdfann-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: visible;
+}
+.pdfann-svg .pdfann-hit,
+.pdfann-svg .pdfann-note-mark {
+  pointer-events: auto;
+}
+.pdfann-svg .pdfann-textcard {
+  cursor: move;
+}
+.pdfann-svg .pdfann-textcard text {
+  pointer-events: none;
+  user-select: none;
+}
+.pdfann-pages.pdfann-draw-active .pdfann-draw {
+  cursor: crosshair;
+  touch-action: none;
+}
+.pdfann-pages.pdfann-sel-lock .pdfann-draw {
+  touch-action: none;
+}
+
+.pdfann-night .pdfann-page {
+  filter: invert(0.92) hue-rotate(180deg);
+}
+
+.pdfann-selbox {
+  position: absolute;
+  border: 1px solid #2f7fd8;
+  background: rgba(47, 127, 216, 0.18);
+  pointer-events: none;
+  z-index: 5;
+}
+/* live character level selection preview */
+.pdfann-selpreview {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+.pdfann-selrect {
+  position: absolute;
+  background: rgba(47, 127, 216, 0.3);
+  border-radius: 2px;
+  box-shadow:
+    inset 0 0 0 1px rgba(47, 127, 216, 0.5),
+    0 1px 5px rgba(47, 127, 216, 0.25);
+}
+.pdfann-selpreview.is-drag .pdfann-selrect {
+  background: rgba(47, 127, 216, 0.34);
+}
+.pdfann-flash {
+  position: absolute;
+  border: 2px solid #2f7fd8;
+  border-radius: 3px;
+  background: rgba(47, 127, 216, 0.12);
+  pointer-events: none;
+  z-index: 6;
+  animation: pdfann-flash 1.2s ease-out;
+}
+@keyframes pdfann-flash {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ---------- options bar ---------- */
+.pdfann-opts {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  z-index: 20;
+  max-width: calc(100% - 120px);
+  overflow-x: auto;
+  user-select: none;
+}
+.pdfann-palette {
+  display: flex;
+  gap: 6px;
+}
+.pdfann-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  flex: 0 0 auto;
+}
+.pdfann-swatch.is-active {
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+.pdfann-swatch-sm {
+  width: 13px;
+  height: 13px;
+}
+.pdfann-width {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.pdfann-range {
+  width: 84px;
+}
+.pdfann-width-val {
+  min-width: 22px;
+  text-align: right;
+}
+.pdfann-opts-label {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.pdfann-opts-extra {
+  display: flex;
+  gap: 6px;
+}
+.pdfann-hide-width .pdfann-width {
+  display: none;
+}
+
+/* ---------- sidebar ---------- */
+.pdfann-side {
+  width: 236px;
+  flex: 0 0 236px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  overflow: hidden;
+}
+.pdfann-side.is-hidden {
+  display: none;
+}
+.pdfann-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex: 0 0 auto;
+}
+.pdfann-tab {
+  flex: 1;
+  height: 32px;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: none;
+}
+.pdfann-tab.is-active {
+  color: var(--text-normal);
+  border-bottom: 2px solid var(--interactive-accent);
+}
+.pdfann-side-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 4px 20px;
+}
+.pdfann-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-faint);
+  padding: 4px 8px 6px;
+}
+.pdfann-side-page {
+  font-size: 11px;
+  color: var(--text-faint);
+  padding: 8px 8px 2px;
+  position: sticky;
+  top: 0;
+  background: var(--background-primary);
+}
+.pdfann-annot-item {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+}
+.pdfann-annot-item:hover {
+  background: var(--background-modifier-hover);
+}
+.pdfann-annot-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex: 0 0 auto;
+}
+.pdfann-annot-main {
+  flex: 1;
+  min-width: 0;
+}
+.pdfann-annot-text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-normal);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.pdfann-annot-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  padding-left: 6px;
+  border-left: 2px solid var(--background-modifier-border);
+}
+.pdfann-annot-meta {
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-top: 3px;
+}
+.pdfann-annot-del {
+  opacity: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  box-shadow: none;
+}
+.pdfann-annot-item:hover .pdfann-annot-del {
+  opacity: 1;
+}
+.pdfann-empty {
+  font-size: 12px;
+  color: var(--text-faint);
+  padding: 18px 10px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.pdfann-outline-item {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pdfann-outline-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* ---------- popup ---------- */
+.pdfann-popup {
+  position: fixed;
+  z-index: 1000;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+}
+.pdfann-popup-text {
+  max-width: 320px;
+  padding: 5px 8px 4px;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pdfann-popup-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pdfann-popbtn {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-normal);
+  cursor: pointer;
+  box-shadow: none;
+  white-space: nowrap;
+}
+.pdfann-popbtn:hover {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.pdfann-popup-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--background-modifier-border);
+  margin: 0 3px;
+}
+
+.pdfann-empty-state {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+.pdfann-empty-state.is-hidden {
+  display: none;
+}
+
+/* ---------- progress & modal ---------- */
+.pdfann-progress {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  font-size: 13px;
+  color: var(--text-muted);
+  z-index: 30;
+}
+.pdfann-progress.is-hidden {
+  display: none;
+}
+.pdfann-modal-input {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.pdfann-modal-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.pdfann-modal-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.pdfann-settings-info {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 4px 0 12px;
+}
+
+/* ---------- mobile ---------- */
+@media (max-width: 720px) {
+  .pdfann-side {
+    display: none;
+  }
+  .pdfann-rail {
+    width: 38px;
+    flex: 0 0 38px;
+  }
+  .pdfann-opts {
+    bottom: 8px;
+    padding: 5px 9px;
+    gap: 7px;
+  }
+  .pdfann-range {
+    width: 60px;
+  }
+  .pdfann-bar {
+    height: 38px;
+    flex: 0 0 38px;
+  }
+}

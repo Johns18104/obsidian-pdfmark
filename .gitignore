@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+*.log
+src/worker-b64.ts
+src/pdfres-b64.ts
+test/harness/bundle.js
+test/harness/*.pdf
+test/*.png
+test/out.pdf
+!images/*.png
